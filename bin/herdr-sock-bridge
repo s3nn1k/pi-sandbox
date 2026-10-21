@@ -1,0 +1,160 @@
+#!/usr/bin/python3
+import json
+import os
+import socket
+import sys
+import threading
+import time
+
+PORT = 4761
+SOCK_PATH = os.path.expanduser("~/.config/herdr/herdr.sock")
+ALLOWED_METHODS = {"pane.report_agent", "pane.report_agent_session"}
+MAX_LINE = 1024 * 1024  # защита от переполнения буфера мусором без \n
+
+
+def log(msg):
+    print("herdr-bridge: %s" % msg, file=sys.stderr, flush=True)
+
+
+def reject_response(request_id):
+    return json.dumps({
+        "id": request_id,
+        "error": {
+            "code": "method_not_allowed",
+            "message": "bridge allows only status reports",
+        },
+    }).encode("utf-8") + b"\n"
+
+
+def pipe_responses(upstream, client):
+    try:
+        while True:
+            data = upstream.recv(65536)
+            if not data:
+                break
+            client.sendall(data)
+    except OSError:
+        pass
+    finally:
+        for sock in (upstream, client):
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+ACTIVE = threading.Semaphore(32)
+
+
+def handle(client):
+    if not ACTIVE.acquire(blocking=False):
+        log("reject: connection limit")
+        try:
+            client.close()
+        except OSError:
+            pass
+        return
+    try:
+        _handle(client)
+    finally:
+        ACTIVE.release()
+
+
+def _handle(client):
+    client.settimeout(300)
+    try:
+        upstream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        upstream.settimeout(300)
+        upstream.connect(SOCK_PATH)
+    except OSError as exc:
+        log("upstream unavailable: %s" % exc)
+        try:
+            client.sendall(json.dumps(
+                {"id": None, "error": {"code": "bridge_unavailable"}}
+            ).encode("utf-8") + b"\n")
+        except OSError:
+            pass
+        client.close()
+        return
+
+    threading.Thread(
+        target=pipe_responses, args=(upstream, client), daemon=True
+    ).start()
+
+    buf = b""
+    while True:
+        try:
+            chunk = client.recv(65536)
+        except OSError:
+            break
+        if not chunk:
+            break
+        if len(buf) + len(chunk) > MAX_LINE:
+            log("reject: line without newline exceeds MAX_LINE")
+            break
+        buf += chunk
+        while b"\n" in buf:
+            line, buf = buf.split(b"\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+
+            request_id = None
+            try:
+                if len(line) > MAX_LINE:
+                    raise ValueError("line too long")
+                request = json.loads(line.decode("utf-8"))
+                method = request.get("method")
+                request_id = request.get("id")
+            except (ValueError, UnicodeDecodeError):
+                method = None
+
+            if method in ALLOWED_METHODS:
+                try:
+                    upstream.sendall(line + b"\n")
+                except OSError:
+                    return
+            else:
+                log("reject: %s" % line[:100].decode("utf-8", "replace"))
+                try:
+                    client.sendall(reject_response(request_id))
+                except OSError:
+                    pass
+                for sock in (upstream, client):
+                    try:
+                        sock.close()
+                    except OSError:
+                        pass
+                return
+
+    for sock in (upstream, client):
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+def main():
+    wait_start = time.time()
+    waited_notice = 0
+    while not os.path.exists(SOCK_PATH):
+        time.sleep(5)
+        waited = int((time.time() - wait_start) / 60)
+        if waited >= (waited_notice + 10):
+            waited_notice = waited
+            log("waiting for %s (%d min)" % (SOCK_PATH, waited))
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", PORT))
+    server.listen(16)
+    log("listening on 127.0.0.1:%d -> %s (allow: %s)"
+        % (PORT, SOCK_PATH, ", ".join(sorted(ALLOWED_METHODS))))
+
+    while True:
+        client, _ = server.accept()
+        threading.Thread(target=handle, args=(client,), daemon=True).start()
+
+
+if __name__ == "__main__":
+    main()

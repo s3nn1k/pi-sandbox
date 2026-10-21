@@ -1,0 +1,8 @@
+projects
+.pi/agent/sessions vm-only
+.pi/agent/missions vm-only
+tmp vm-only
+vaults/work/researches vm-only
+vaults/work/incidents vm-only
+go/pkg/mod vm-only ro
+.local/share/whisper vm-only ro

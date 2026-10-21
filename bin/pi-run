@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# Запуск контейнера pi-агента. Перенос логики pi() из dotfiles/zshrc (Ф1).
+set -uo pipefail
+SBX="$HOME/pi-sandbox"
+CACHE="$HOME/tmp/pi-cache"
+
+if [[ "${1:-}" == "--unsafe" ]]; then
+  shift
+  exec command pi "$@"
+fi
+
+if [[ "${1:-}" == "update" ]]; then
+  exec command pi "$@"
+fi
+
+PWD="$(pwd -P)"
+if [[ "$PWD" == *..* ]]; then
+  echo "pi: '$PWD' содержит '..' — запуск из канонического пути" >&2
+  exit 1
+fi
+ok=0
+while IFS= read -r p; do
+  [[ "$p" == *vm-only* || "$p" == *root-only* ]] && continue
+  [[ "$PWD" == "$HOME/$p" || "$PWD" == "$HOME/$p"/* ]] && { ok=1; break; }
+done < <(grep -vE '^\s*#|^\s*$' "$SBX/pi-mounts")
+if [[ $ok != 1 ]]; then
+  echo "pi: '$PWD' вне смонтированных корней (см. $SBX/pi-mounts). Запустись из проекта или используй pi --unsafe." >&2
+  exit 1
+fi
+
+for dep in jq rsync nc yq; do
+  command -v "$dep" >/dev/null 2>&1 || { echo "pi: нет зависимости $dep" >&2; exit 1; }
+done
+
+unset DOCKER_HOST
+export DOCKER_CONTEXT=colima
+
+run_to() {
+  local timeout_s="$1"; shift
+  "$@" &
+  local pid=$!
+  ( sleep "$timeout_s"; kill -TERM "$pid" 2>/dev/null; sleep 5; kill -KILL "$pid" 2>/dev/null ) &
+  local watcher=$!
+  wait "$pid"; local rc=$?
+  kill -TERM "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
+  return $rc
+}
+
+pi_vm_up() {
+  docker context inspect colima >/dev/null 2>&1 \
+    || docker context create colima --docker "host=unix://$HOME/.colima/default/docker.sock" >/dev/null 2>&1
+  docker context show | grep -qx colima || docker context use colima >/dev/null 2>&1
+  docker info >/dev/null 2>&1 && return 0
+  run_to 180 colima start >/dev/null 2>&1
+  docker info >/dev/null 2>&1 && return 0
+  if ! docker ps >/dev/null 2>&1; then
+    echo "pi: docker-демон не отвечает достоверно — жёсткий цикл отменён (fail-closed), ре-ран pi позже" >&2
+    return 1
+  fi
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^pi-sess-'; then
+    echo "pi: живые pi-sess-* — жёсткий цикл VM запрещён; останови сессии или ре-ран" >&2
+    return 1
+  fi
+  run_to 60 colima stop >/dev/null 2>&1 && run_to 180 colima start >/dev/null 2>&1
+  docker info >/dev/null 2>&1
+}
+pi_vm_up || { echo "pi: docker-VM недоступна даже после пересоздания" >&2; exit 1; }
+
+export AGENT_HOME="$HOME" AGENT_UID="$(id -u)" AGENT_GID="$(id -g)" WORKDIR="$PWD"
+docker image inspect pi-agent-base >/dev/null 2>&1 \
+  || { echo "pi: нет образа pi-agent-base — make -C $SBX image" >&2; exit 1; }
+DIND_ID="$(docker compose -f "$SBX/compose.yaml" ps -q dind)"
+live_sess="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -c '^pi-sess-')"
+if [ "$live_sess" -gt 0 ]; then
+  dind_state="$(docker inspect -f '{{.State.Health.Status}}' "$DIND_ID" 2>/dev/null)"
+  [ "$dind_state" = healthy ] || echo "pi: WARN: живые сессии при нездоровом dind — up пропущен (пересоздание осиротит их)" >&2
+else
+  dind_state="$(docker inspect -f '{{.State.Health.Status}}' "$DIND_ID" 2>/dev/null)"
+  if [ "$dind_state" = unhealthy ]; then
+    echo "pi: dind unhealthy — рестартую (живых сессий нет)" >&2
+    docker compose -f "$SBX/compose.yaml" restart dind >/dev/null 2>&1
+  fi
+  docker compose -f "$SBX/compose.yaml" up -d --wait --wait-timeout 180 dind herdr-bridge >/dev/null 2>&1 \
+    || { echo "pi: dind/herdr-bridge не поднялись (см. docker compose -f $SBX/compose.yaml logs)" >&2; exit 1; }
+  DIND_ID="$(docker compose -f "$SBX/compose.yaml" ps -q dind)"
+fi
+[ -n "${DIND_ID:-}" ] || { echo "pi: dind-id не найден" >&2; exit 1; }
+bind_srcs="$(docker compose -f "$SBX/compose.yaml" config --format json 2>/dev/null \
+  | jq -r '[.services[].volumes[]? | select(.type == "bind") | .source] | unique[]' 2>/dev/null)"
+[ -n "$bind_srcs" ] || { echo "pi: pre-flight: не смог разобрать bind-источники compose" >&2; exit 1; }
+for src in $bind_srcs; do
+  found=0
+  while IFS= read -r mnt; do
+    case "$src" in "$mnt"|"$mnt"/*) found=1; break ;; esac
+  done < <(yq -r '.mounts[].location' "$HOME/.colima/default/colima.yaml" 2>/dev/null)
+  [ "$found" = 1 ] || { echo "pi: bind-источник $src вне VM-маунтов — sandbox-sync + colima restart?" >&2; exit 1; }
+done
+
+[ -n "$DIND_ID" ] || { echo "pi: dind-id не найден" >&2; exit 1; }
+
+mkdir -p "$CACHE"
+sync_lock="$CACHE/.sync-lock"
+lock_tries=0
+until mkdir "$sync_lock" 2>/dev/null; do
+  (( ++lock_tries > 300 )) && { echo "pi: sync-lock занят (pid ${lock_pid:-?})" >&2; exit 1; }
+  lock_pid="$(cat "$sync_lock/pid" 2>/dev/null)"
+  if [ -z "$lock_pid" ] && [ -z "$(find "$sync_lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+    sleep 1
+    continue
+  fi
+  if { [ -z "$lock_pid" ] || ! kill -0 "$lock_pid" 2>/dev/null; } \
+     && ! pgrep -f 'pi-cache/(brain|nvim|dotfiles)' >/dev/null 2>&1; then
+    rm -rf "$sync_lock"
+    continue
+  fi
+  sleep 1
+done
+echo $$ > "$sync_lock/pid"
+sync_lock_release() { [ "$(cat "$sync_lock/pid" 2>/dev/null)" = "$$" ] && rm -rf "$sync_lock"; }
+
+pi_bin="$(readlink -f "$(command -v pi 2>/dev/null)" 2>/dev/null)"
+PI_SRC=""
+for _ in 1 2 3 4; do
+  [ -n "$pi_bin" ] || break
+  pi_dir="$(dirname "$pi_bin")"
+  while [ "$pi_dir" != "/" ]; do
+    if jq -e '.name? == "@earendil-works/pi-coding-agent"' "$pi_dir/package.json" >/dev/null 2>&1; then
+      PI_SRC="$pi_dir"
+      break 2
+    fi
+    pi_dir="$(dirname "$pi_dir")"
+  done
+  pi_next="$(grep -oE '"/[^" ]+"' "$pi_bin" 2>/dev/null | head -1 | tr -d '"')"
+  [ -n "$pi_next" ] && [ "$pi_next" != "$pi_bin" ] || break
+  pi_bin="$(readlink -f "$pi_next" 2>/dev/null)"
+done
+if [ -z "$PI_SRC" ]; then
+  echo "pi: не нашёл пакет @earendil-works/pi-coding-agent за '${pi_command:-pi}' — рантайм для контейнера взять неоткуда" >&2
+  sync_lock_release
+  exit 1
+fi
+
+mkdir -p "$CACHE/brain" "$CACHE/nvim" "$CACHE/dotfiles" "$CACHE/pi-runtime"
+rsync -a --delete --exclude /sessions --exclude /missions "$HOME/.pi/agent/" "$CACHE/brain/" &
+rs_brain=$!
+rsync -a --delete "$PI_SRC/" "$CACHE/pi-runtime/" &
+rs_pi=$!
+rsync -a --delete "$HOME/.config/nvim/" "$CACHE/nvim/" &
+rs_nvim=$!
+rsync -a --delete --exclude .git "$HOME/dotfiles/" "$CACHE/dotfiles/" &
+rs_dot=$!
+trap 'kill $rs_brain $rs_pi $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release' INT TERM HUP
+[ -d "$CACHE/gitconfig" ] && rm -rf "$CACHE/gitconfig"
+{ cat "$HOME/dotfiles/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/gitconfig" \
+  || { echo "pi: нет ~/dotfiles/gitconfig" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+# git routing/identity chain: public ~/.gitconfig includes
+# ~/credentials/git/gitconfig -> per-remote identity files; identities are
+# per-remote (includeIf), so the container needs the real include chain, not a
+# flattened copy. Only *.gitconfig go into the cache - git-credentials (tokens)
+# travel exclusively through /run/secrets.
+[ -d "$HOME/credentials/git" ] \
+  || { echo "pi: нет ~/credentials/git (bootstrap/unlock не выполнен?)" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+[ -d "$CACHE/credentials" ] && rm -rf "$CACHE/credentials"
+mkdir -p "$CACHE/credentials/git"
+for f in "$HOME/credentials/git/gitconfig" "$HOME/credentials/git/"*.gitconfig; do
+  [ -f "$f" ] || continue
+  sed 's#\$HOME/pi-sandbox/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' "$f" \
+    > "$CACHE/credentials/git/$(basename "$f")" \
+    || { echo "pi: сбой копирования $f" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+done
+[ -d "$CACHE/git-credentials" ] && rm -rf "$CACHE/git-credentials"
+install -m 600 "$HOME/credentials/agents-credentials/git-credentials" "$CACHE/git-credentials" \
+  || { echo "pi: нет $HOME/credentials/agents-credentials/git-credentials" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+sync_fail=0
+wait $rs_brain || sync_fail=1
+wait $rs_pi || sync_fail=1
+wait $rs_nvim || sync_fail=1
+wait $rs_dot || sync_fail=1
+mkdir -p "$CACHE/dotfiles/bin" \
+  && install -m 755 "$SBX/bin/git-cred-read" "$CACHE/dotfiles/bin/git-cred-read" \
+  && install -m 755 "$SBX/bin/pi" "$CACHE/dotfiles/bin/pi" \
+  || sync_fail=1
+trap - INT TERM HUP
+sync_lock_release
+(( sync_fail )) && { echo "pi: сбой синхронизации кэша — отмена запуска" >&2; exit 1; }
+
+hpane="$(run_to 5 herdr pane current 2>/dev/null | jq -r '.result.pane.pane_id // empty')"
+: "${hpane:=${HERDR_PANE_ID:-}}"
+
+orphan_ttl=21600
+while IFS= read -r c; do
+  pgrep -f -- "${c}([^0-9]|$)" >/dev/null 2>&1 && continue
+  s=$(docker inspect -f '{{.State.StartedAt}}' "$c" 2>/dev/null) || continue
+  s=${s%%.*}; s=${s/T/ }
+  age=$(( $(date +%s) - $(date -u -j -f '%Y-%m-%d %H:%M:%S' "$s" +%s 2>/dev/null || echo 99999999999) ))
+  (( age > orphan_ttl )) && docker rm -f "$c" >/dev/null 2>&1
+done < <(docker ps --format '{{.Names}}' 2>/dev/null | grep '^pi-sess-')
+if [ -n "$(find "$CACHE/.dind-prune-stamp" -mtime +1 2>/dev/null)" ] || [ ! -f "$CACHE/.dind-prune-stamp" ]; then
+  inner_ttl=$(( 24 * 3600 ))
+  now=$(date +%s)
+  while IFS= read -r line; do
+    cont_id="${line%% *}"; started="${line#* }"
+    started="${started%%.*}"; started="${started/T/ }"
+    started_at=$(date -u -j -f '%Y-%m-%d %H:%M:%S' "$started" +%s 2>/dev/null) || continue
+    (( now - started_at > inner_ttl )) && docker exec "$DIND_ID" docker stop "$cont_id" >/dev/null 2>&1
+  done < <(docker exec "$DIND_ID" docker inspect -f '{{.Id}} {{.State.StartedAt}}' \
+    $(docker exec "$DIND_ID" docker ps -q 2>/dev/null) 2>/dev/null)
+  prune_log="$CACHE/.dind-prune-last.log"
+  if [ -n "$DIND_ID" ] && run_to 120 docker exec "$DIND_ID" docker system prune -f --filter until=48h >"$prune_log" 2>&1; then
+    touch "$CACHE/.dind-prune-stamp"
+    rm -f "$prune_log"
+  else
+    prune_rc=$?
+    echo "pi: WARN: prune dind не удался (rc=$prune_rc; 143=таймаут 120с; лог: $prune_log)" >&2
+    tail -n 5 "$prune_log" 2>/dev/null | sed 's/^/  | /' >&2
+  fi
+fi
+
+nm="pi-sess-$$"
+nm_state="$(docker inspect -f '{{.State.Status}}' "$nm" 2>/dev/null)"
+if [ -n "$nm_state" ] && [ "$nm_state" != running ]; then
+  docker rm -f "$nm" >/dev/null 2>&1
+  echo "pi: убран stale-контейнер $nm (state=$nm_state)" >&2
+fi
+HERDR_PANE_ID="$hpane" HERDR_AGENT=pi docker compose -f "$SBX/compose.yaml" run --rm --no-deps --name "$nm" pi-agent "$@"
+rc=$?
+reattach_tries=0
+while [ $rc -ne 0 ]; do
+  docker ps -a --format '{{.Names}}' | grep -q "^$nm$" || break
+  (( ++reattach_tries > 10 )) && { echo "pi: reattach-кап 10 попыток — сессия нестабильна (docker logs $nm)" >&2; rc=1; break; }
+  sess_state="$(docker inspect -f '{{.State.Status}}' "$nm" 2>/dev/null)"
+  if [ "$sess_state" != running ]; then
+    echo "pi: контейнер сессии не running (state=${sess_state:-?}) — reattach прекращён" >&2
+    rc=1; break
+  fi
+  echo "pi: связь с контейнером оборвалась — переподключаюсь к живой сессии ($reattach_tries/10)" >&2
+  docker compose -f "$SBX/compose.yaml" up -d --wait --wait-timeout 180 dind >/dev/null 2>&1 \
+    || { echo "pi: dind не ожил — reattach отменён" >&2; rc=1; break; }
+  sess_net="$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$nm" 2>/dev/null)"
+  if [ "$sess_net" != "container:$DIND_ID" ]; then
+    echo "pi: сессия осиротела (dind пересоздан: $sess_net ≠ container:$DIND_ID) — нужен перезапуск pi" >&2
+    rc=1; break
+  fi
+  sleep "$reattach_tries"
+  docker start -a "$nm"
+  rc=$?
+done
+exit "$rc"

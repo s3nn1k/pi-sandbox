@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node "$HOME/.pi/runtime/dist/bundle/cli.js" "$@"
