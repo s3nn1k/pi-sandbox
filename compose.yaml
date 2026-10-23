@@ -23,6 +23,7 @@ services:
       HERDR_AGENT: ${HERDR_AGENT:-pi}
       DOCKER_HOST: unix:///var/run/dind/docker.sock
       DOCKER_CONFIG: ${AGENT_HOME}/.cache/docker
+      UV_PYTHON_INSTALL_DIR: ${AGENT_HOME}/.cache/uv-python
     volumes:
       - ${AGENT_HOME}/projects:${AGENT_HOME}/projects
       - ${AGENT_HOME}/tmp/pi-cache/brain:${AGENT_HOME}/.pi/agent

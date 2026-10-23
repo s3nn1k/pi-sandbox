@@ -57,6 +57,7 @@ ARG KUBECTL_VERSION=v1.37.0
 ARG YQ_VERSION=v4.53.6
 ARG YTDLP_VERSION=2026.08.19
 ARG NVIM_VERSION=v0.12.5
+ARG UV_VERSION=0.13.5
 RUN set -eux; \
     curl -fsSL -o /tmp/glab.tgz \
       "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_arm64.tar.gz"; \
@@ -79,7 +80,11 @@ RUN set -eux; \
       "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux-arm64.tar.gz"; \
     tar -xzf /tmp/nvim.tgz -C /opt; \
     ln -s /opt/nvim-linux-arm64/bin/nvim /usr/local/bin/nvim; \
-    rm -rf /tmp/glab.tgz /tmp/gh.tgz /tmp/nvim.tgz /tmp/bin "/tmp/gh_${GH_VERSION}_linux_arm64"
+    curl -fsSL -o /tmp/uv.tgz \
+      "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-aarch64-unknown-linux-gnu.tar.gz"; \
+    tar -xzf /tmp/uv.tgz -C /tmp; \
+    mv /tmp/uv-aarch64-unknown-linux-gnu/uv /tmp/uv-aarch64-unknown-linux-gnu/uvx /usr/local/bin/; \
+    rm -rf /tmp/glab.tgz /tmp/gh.tgz /tmp/nvim.tgz /tmp/uv.tgz /tmp/bin /tmp/uv-aarch64-unknown-linux-gnu "/tmp/gh_${GH_VERSION}_linux_arm64"
 
 ARG PLAYWRIGHT_VERSION=1.63.0
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/ms-playwright \
