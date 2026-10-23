@@ -9,9 +9,11 @@ if [[ "${1:-}" == "--unsafe" ]]; then
   exec command pi "$@"
 fi
 
-if [[ "${1:-}" == "update" ]]; then
-  exec command pi "$@"
-fi
+case "${1:-}" in
+  update|mcp|auth|install|remove|uninstall|list|config)
+    exec command pi "$@"
+    ;;
+esac
 
 PWD="$(pwd -P)"
 if [[ "$PWD" == *..* ]]; then

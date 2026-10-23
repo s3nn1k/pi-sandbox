@@ -19,7 +19,10 @@ VM1 (vz/virtiofs, mounts: projects, .pi/agent/{sessions,missions}, tmp,
 ```
 
 Запуск: `pi` из проекта (тонкая функция в dotfiles/zshrc -> `bin/pi-run`). `pi --unsafe` -
-хостовый pi. guard корней - `pi-mounts` (vm-only = только маунт VM; ro = только сиды).
+хостовый pi. Конфиг-подкоманды без сессии (update/mcp/auth/install/remove/uninstall/
+list/config) - тоже хостовый pi: они правят хостовой ~/.pi/agent (в контейнере это
+rsync-копия кэша, затираемая каждым запуском), guard корней им не нужен. guard корней
+сессий - `pi-mounts` (vm-only = только маунт VM; ro = только сиды).
 
 ## Ключевые решения
 
