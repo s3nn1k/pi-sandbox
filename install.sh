@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Разворачивание песочницы на чистой машине (вызывается dotfiles/scripts/bootstrap.sh
+# Разворачивание песочницы на чистой машине (вызывается dotfiles-mac/scripts/bootstrap.sh
 # или руками). Идемпотентен.
 set -euo pipefail
 SBX="$(cd "$(dirname "$0")" && pwd)"

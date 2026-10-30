@@ -149,12 +149,12 @@ rsync -a --delete "$PI_SRC/" "$CACHE/pi-runtime/" &
 rs_pi=$!
 rsync -a --delete "$HOME/.config/nvim/" "$CACHE/nvim/" &
 rs_nvim=$!
-rsync -a --delete --exclude .git "$HOME/dotfiles/" "$CACHE/dotfiles/" &
+rsync -a --delete --exclude .git "$HOME/dotfiles-mac/" "$CACHE/dotfiles/" &
 rs_dot=$!
 trap 'kill $rs_brain $rs_pi $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release' INT TERM HUP
 [ -d "$CACHE/gitconfig" ] && rm -rf "$CACHE/gitconfig"
-{ cat "$HOME/dotfiles/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/gitconfig" \
-  || { echo "pi: нет ~/dotfiles/gitconfig" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+{ cat "$HOME/dotfiles-mac/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/gitconfig" \
+  || { echo "pi: нет ~/dotfiles-mac/gitconfig" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
 # git routing/identity chain: public ~/.gitconfig includes
 # ~/credentials/git/gitconfig -> per-remote identity files; identities are
 # per-remote (includeIf), so the container needs the real include chain, not a

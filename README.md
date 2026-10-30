@@ -18,7 +18,7 @@ VM1 (vz/virtiofs, mounts: projects, .pi/agent/{sessions,missions}, tmp,
 +-- herdr-bridge    socat unix -> TCP 192.168.5.2:4761 (мак-мост, whitelist)
 ```
 
-Запуск: `pi` из проекта (тонкая функция в dotfiles/zshrc -> `bin/pi-run`). `pi --unsafe` -
+Запуск: `pi` из проекта (тонкая функция в dotfiles-mac/zshrc -> `bin/pi-run`). `pi --unsafe` -
 хостовый pi. Конфиг-подкоманды без сессии (update/mcp/auth/install/remove/uninstall/
 list/config) - тоже хостовый pi: они правят хостовой ~/.pi/agent (в контейнере это
 rsync-копия кэша, затираемая каждым запуском), guard корней им не нужен. guard корней
@@ -45,7 +45,7 @@ rsync-копия кэша, затираемая каждым запуском), 
 
 ## Установка
 
-`./install.sh` (его вызывает dotfiles/scripts/bootstrap.sh после клона): pf-якорь -> colima VM ->
+`./install.sh` (его вызывает dotfiles-mac/scripts/bootstrap.sh после клона): pf-якорь -> colima VM ->
 маунты+firewall (sandbox-sync, verify) -> image+seeds -> herdr-bridge LaunchAgent.
 Идемпотентен.
 
@@ -91,4 +91,4 @@ no-op) - vault-файл единственный источник правды, 
 ## LaunchAgent
 
 `launchagents/com.pi-sandbox.herdr-bridge.plist` - шаблон (`__HOME__` подставляет
-dotfiles/scripts/bootstrap.sh); в репозитории невалиден намеренно.
+dotfiles-mac/scripts/bootstrap.sh); в репозитории невалиден намеренно.
