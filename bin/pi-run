@@ -141,7 +141,7 @@ if [ -z "$PI_SRC" ]; then
 fi
 
 mkdir -p "$CACHE/brain" "$CACHE/nvim" "$CACHE/dotfiles" "$CACHE/pi-runtime"
-rsync -a --delete --exclude /sessions --exclude /missions "$HOME/.pi/agent/" "$CACHE/brain/" &
+rsync -a --copy-unsafe-links --delete --exclude /sessions --exclude /missions "$HOME/.pi/agent/" "$CACHE/brain/" &
 rs_brain=$!
 rsync -a --delete "$PI_SRC/" "$CACHE/pi-runtime/" &
 rs_pi=$!
