@@ -160,7 +160,10 @@ trap 'kill $rs_brain $rs_pi $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_releas
 # travel exclusively through /run/secrets.
 [ -d "$HOME/credentials/git" ] \
   || { echo "pi: нет ~/credentials/git (bootstrap/unlock не выполнен?)" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
-[ -d "$CACHE/credentials" ] && rm -rf "$CACHE/credentials"
+# Чистим содержимое, а не сам каталог: контейнеры работающих сессий биндят его
+# как том — rm -rf корня оставил бы их привязанными к удалённому иноду (пустой
+# ~/credentials). Корневой инода должен жить вечно.
+[ -d "$CACHE/credentials" ] && find "$CACHE/credentials" -mindepth 1 -delete
 mkdir -p "$CACHE/credentials/git"
 for f in "$HOME/credentials/git/gitconfig" "$HOME/credentials/git/"*.gitconfig; do
   [ -f "$f" ] || continue
