@@ -56,10 +56,8 @@ pi_vm_up() {
   run_to 180 colima start >/dev/null 2>&1
   docker info >/dev/null 2>&1 && return 0
   if ! docker ps >/dev/null 2>&1; then
-    echo "pi: docker-демон не отвечает достоверно — жёсткий цикл отменён (fail-closed), ре-ран pi позже" >&2
-    return 1
-  fi
-  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^pi-sess-'; then
+    echo "pi: демон мёртв полностью (wedged VM) — сессии недостижимы, один жёсткий цикл" >&2
+  elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^pi-sess-'; then
     echo "pi: живые pi-sess-* — жёсткий цикл VM запрещён; останови сессии или ре-ран" >&2
     return 1
   fi
