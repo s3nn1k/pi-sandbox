@@ -4,7 +4,7 @@
 # граница безопасности не должна быть редактируема агентом.
 # После изменения списка: sandbox-sync && colima restart
 set -euo pipefail
-list="$HOME/pi-sandbox/pi-mounts"
+list="$HOME/pi-sandbox-macos/pi-mounts"
 cfg="$HOME/.colima/default/colima.yaml"
 [ -f "$cfg" ] || { echo "нет $cfg (colima не настроен?)" >&2; exit 1; }
 entries=()

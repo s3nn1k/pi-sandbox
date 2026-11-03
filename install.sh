@@ -4,9 +4,11 @@
 set -euo pipefail
 SBX="$(cd "$(dirname "$0")" && pwd)"
 
-pf_anchor=pi-sandbox
+pf_anchor=pi-sandbox-macos
 sudo sed -i '' '/happ-local/d' /etc/pf.conf
 sudo rm -f /etc/pf.anchors/happ-local
+sudo sed -i '' -e '/anchor "pi-sandbox"$/d' -e '/\/pf\.anchors\/pi-sandbox"$/d' /etc/pf.conf
+sudo rm -f /etc/pf.anchors/pi-sandbox
 sudo cp "$SBX/pf/$pf_anchor" "/etc/pf.anchors/$pf_anchor"
 if ! grep -q "$pf_anchor" /etc/pf.conf; then
   printf 'anchor "%s"\nload anchor "%s" from "/etc/pf.anchors/%s"\n' "$pf_anchor" "$pf_anchor" "$pf_anchor" \
@@ -52,14 +54,15 @@ echo "$fw" | grep -q 'ESTABLISHED,RELATED -j RETURN' \
   && echo "$fw" | grep -q '192.168.5.2/32 -j DROP' \
   || { echo "install: firewall неполный (нет EST/4761/DROP или весь отсутствует)" >&2; exit 1; }
 
-mkdir -p "$HOME/Library/Logs/pi-sandbox" "$HOME/.local/bin" "$HOME/Library/LaunchAgents"
+mkdir -p "$HOME/Library/Logs/pi-sandbox-macos" "$HOME/.local/bin" "$HOME/Library/LaunchAgents"
 ln -sfn "$SBX/bin/herdr-sock-bridge" "$HOME/.local/bin/herdr-sock-bridge"
 launchctl bootout "gui/$(id -u)/com.s3nn1k.herdr-bridge" >/dev/null 2>&1 || true
 launchctl bootout "gui/$(id -u)/com.pi-sandbox.herdr-bridge" >/dev/null 2>&1 || true
-sed "s|__HOME__|$HOME|" "$SBX/launchagents/com.pi-sandbox.herdr-bridge.plist" \
-  > "$HOME/Library/LaunchAgents/com.pi-sandbox.herdr-bridge.plist"
+launchctl bootout "gui/$(id -u)/com.pi-sandbox-macos.herdr-bridge" >/dev/null 2>&1 || true
+sed "s|__HOME__|$HOME|" "$SBX/launchagents/com.pi-sandbox-macos.herdr-bridge.plist" \
+  > "$HOME/Library/LaunchAgents/com.pi-sandbox-macos.herdr-bridge.plist"
 launchctl bootstrap "gui/$(id -u)" \
-  "$HOME/Library/LaunchAgents/com.pi-sandbox.herdr-bridge.plist" && echo "herdr-bridge: agent loaded"
+  "$HOME/Library/LaunchAgents/com.pi-sandbox-macos.herdr-bridge.plist" && echo "herdr-bridge: agent loaded"
 
 make -C "$SBX" image \
   || echo "install: WARN: make image не прошёл — догони вручную: make -C $SBX image" >&2

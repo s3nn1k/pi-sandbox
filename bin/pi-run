@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Запуск контейнера pi-агента. Перенос логики pi() из dotfiles/zshrc (Ф1).
 set -uo pipefail
-SBX="$HOME/pi-sandbox"
+SBX="$HOME/pi-sandbox-macos"
 CACHE="$HOME/tmp/pi-cache"
 
 if [[ "${1:-}" == "--unsafe" ]]; then
@@ -167,7 +167,8 @@ trap 'kill $rs_brain $rs_pi $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_releas
 mkdir -p "$CACHE/credentials/git"
 for f in "$HOME/credentials/git/gitconfig" "$HOME/credentials/git/"*.gitconfig; do
   [ -f "$f" ] || continue
-  sed 's#\$HOME/pi-sandbox/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' "$f" \
+  sed -e 's#\$HOME/pi-sandbox-macos/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' \
+       -e 's#\$HOME/pi-sandbox/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' "$f" \
     > "$CACHE/credentials/git/$(basename "$f")" \
     || { echo "pi: сбой копирования $f" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
 done
