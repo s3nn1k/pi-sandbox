@@ -151,7 +151,7 @@ rsync -a --delete --exclude .git "$HOME/dotfiles-mac/" "$CACHE/dotfiles/" &
 rs_dot=$!
 trap 'kill $rs_brain $rs_pi $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release' INT TERM HUP
 [ -d "$CACHE/gitconfig" ] && rm -rf "$CACHE/gitconfig"
-{ cat "$HOME/dotfiles-mac/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/gitconfig" \
+{ sed -e 's#\$HOME/.local/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' "$HOME/dotfiles-mac/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/gitconfig" \
   || { echo "pi: нет ~/dotfiles-mac/gitconfig" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
 # git routing/identity chain: public ~/.gitconfig includes
 # ~/credentials/git/gitconfig -> per-remote identity files; identities are
@@ -168,7 +168,8 @@ mkdir -p "$CACHE/credentials/git"
 for f in "$HOME/credentials/git/gitconfig" "$HOME/credentials/git/"*.gitconfig; do
   [ -f "$f" ] || continue
   sed -e 's#\$HOME/pi-sandbox-macos/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' \
-       -e 's#\$HOME/pi-sandbox/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' "$f" \
+       -e 's#\$HOME/pi-sandbox/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' \
+       -e 's#\$HOME/.local/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' "$f" \
     > "$CACHE/credentials/git/$(basename "$f")" \
     || { echo "pi: сбой копирования $f" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
 done
