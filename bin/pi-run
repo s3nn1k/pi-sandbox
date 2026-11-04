@@ -150,9 +150,16 @@ rs_nvim=$!
 rsync -a --delete --exclude .git "$HOME/dotfiles-mac/" "$CACHE/dotfiles/" &
 rs_dot=$!
 trap 'kill $rs_brain $rs_pi $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release' INT TERM HUP
-[ -d "$CACHE/gitconfig" ] && rm -rf "$CACHE/gitconfig"
-{ sed -e 's#\$HOME/.local/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' "$HOME/dotfiles-mac/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/gitconfig" \
-  || { echo "pi: нет ~/dotfiles-mac/gitconfig" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+{ sed -e 's#~/\.config/git/credentials\.gitconfig#~/credentials/git/gitconfig#' \
+       -e 's#$HOME/pi-sandbox/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' \
+       -e 's#$HOME/.local/bin/git-cred-read#$HOME/dotfiles/bin/git-cred-read#' \
+       "$HOME/dotfiles-mac/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/.gitconfig.tmp" \
+  || { echo "pi: нет ~/dotfiles-mac/gitconfig" >&2; rm -f "$CACHE/.gitconfig.tmp"; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+if [ -d "$CACHE/gitconfig" ]; then
+  rm -rf "$CACHE/gitconfig"
+fi
+mv -f "$CACHE/.gitconfig.tmp" "$CACHE/gitconfig" \
+  || { echo "pi: не смог атомарно поставить $CACHE/gitconfig" >&2; rm -f "$CACHE/.gitconfig.tmp"; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
 # git routing/identity chain: public ~/.gitconfig includes
 # ~/credentials/git/gitconfig -> per-remote identity files; identities are
 # per-remote (includeIf), so the container needs the real include chain, not a
