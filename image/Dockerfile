@@ -16,7 +16,7 @@ FROM node:24-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash git make ripgrep fd-find jq curl ca-certificates openssh-client socat \
-      postgresql-client ffmpeg unzip xz-utils procps \
+      postgresql-client unzip xz-utils procps \
       fontconfig fonts-liberation fonts-dejavu-core fonts-noto-core fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/* \
  && ln -s /usr/bin/fdfind /usr/local/bin/fd
@@ -44,7 +44,6 @@ ARG GLAB_VERSION=1.117.0
 ARG GH_VERSION=2.100.0
 ARG KUBECTL_VERSION=v1.37.0
 ARG YQ_VERSION=v4.53.6
-ARG YTDLP_VERSION=2026.08.19
 ARG NVIM_VERSION=v0.12.5
 ARG UV_VERSION=0.13.5
 RUN set -eux; \
@@ -62,9 +61,6 @@ RUN set -eux; \
     curl -fsSL -o /usr/local/bin/yq \
       "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"; \
     chmod +x /usr/local/bin/yq; \
-    curl -fsSL -o /usr/local/bin/yt-dlp \
-      "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_linux"; \
-    chmod +x /usr/local/bin/yt-dlp; \
     curl -fsSL -o /tmp/nvim.tgz \
       "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux-x86_64.tar.gz"; \
     tar -xzf /tmp/nvim.tgz -C /opt; \
