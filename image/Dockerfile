@@ -12,15 +12,6 @@ RUN go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION} \
  && go install github.com/mgechev/revive@${REVIVE_VERSION} \
  && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_VERSION}
 
-FROM debian:bookworm-slim AS whisper
-ARG WHISPER_VERSION=v1.9.4
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential clang-14 clang++-14 cmake git ca-certificates \
- && rm -rf /var/lib/apt/lists/* \
- && git clone --depth 1 --branch ${WHISPER_VERSION} https://github.com/ggml-org/whisper.cpp /src \
- && CC=clang-14 CXX=clang++-14 cmake -S /src -B /src/build -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=ON -DGGML_CPU_ALL_VARIANTS=OFF -DBUILD_SHARED_LIBS=OFF \
- && cmake --build /src/build --target whisper-cli -j"$(nproc)"
-
 FROM node:24-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -34,8 +25,6 @@ COPY --from=gotools /usr/local/go /usr/local/go
 COPY --from=gotools /out/ /usr/local/bin/
 ENV GOPATH=/go GOTOOLCHAIN=auto
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH
-
-COPY --from=whisper /src/build/bin/whisper-cli /usr/local/bin/
 
 COPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker
 

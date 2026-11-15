@@ -45,7 +45,6 @@ services:
       - dot-cache:${AGENT_HOME}/.cache
       - nvim-data:${AGENT_HOME}/.local/share/nvim
       - nvim-state:${AGENT_HOME}/.local/state/nvim
-      - whisper:${AGENT_HOME}/.local/share/whisper
       - ${AGENT_HOME}/tmp/pi-cache/git-credentials:/run/secrets/pi-git-credentials:ro
       - ${AGENT_HOME}/tmp/pi-cache/agent-creds:/run/secrets/pi-agent-creds:ro
       - ${AGENT_HOME}/tmp/pi-cache/herdr-bridge:${AGENT_HOME}/.config/herdr
@@ -98,6 +97,3 @@ volumes:
   dot-cache:
   nvim-data:
   nvim-state:
-  whisper:
-    name: pi-agent_whisper
-    external: true # владелец — make seeds, не compose
