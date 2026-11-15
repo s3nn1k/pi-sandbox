@@ -1,2 +1,15 @@
 #!/bin/sh
-exec node "$HOME/.pi/runtime/dist/bundle/cli.js" "$@"
+pi_root="$HOME/.pi/agent/install"
+pi_bundle=""
+pi_ver=""
+for _ in 1 2 3; do
+  pi_ver=$(cat "$pi_root/current-version" 2>/dev/null) || break
+  pi_bundle="$pi_root/releases/$pi_ver/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"
+  if [ -f "$pi_bundle" ]; then
+    exec node "$pi_bundle" "$@"
+  fi
+  pi_bundle=""
+  sleep 1
+done
+echo "pi: нет пригодного релиза pi в $pi_root (current-version: '${pi_ver:-отсутствует}'; brain-синк не выполнен или идёт)" >&2
+exit 1

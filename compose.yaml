@@ -29,7 +29,6 @@ services:
     volumes:
       - ${AGENT_HOME}/projects:${AGENT_HOME}/projects
       - ${AGENT_HOME}/tmp/pi-cache/brain:${AGENT_HOME}/.pi/agent
-      - ${AGENT_HOME}/tmp/pi-cache/pi-runtime:${AGENT_HOME}/.pi/runtime:ro
       - ${AGENT_HOME}/.pi/agent/sessions:${AGENT_HOME}/.pi/agent/sessions
       - ${AGENT_HOME}/.pi/agent/missions:${AGENT_HOME}/.pi/agent/missions
       - ${AGENT_HOME}/vaults/work/researches:${AGENT_HOME}/vaults/work/researches

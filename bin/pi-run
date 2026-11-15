@@ -142,7 +142,7 @@ until mkdir "$sync_lock" 2>/dev/null; do
     continue
   fi
   if { [ -z "$lock_pid" ] || ! kill -0 "$lock_pid" 2>/dev/null; } \
-     && ! pgrep -f 'pi-cache/(brain|nvim|dotfiles|pi-runtime)' >/dev/null 2>&1; then
+     && ! pgrep -f 'pi-cache/(brain|nvim|dotfiles)' >/dev/null 2>&1; then
     rm -rf "$sync_lock"
     continue
   fi
@@ -158,16 +158,14 @@ PI_SRC="$HOME/.pi/agent/install/releases/$pi_ver/node_modules/@earendil-works/pi
        sync_lock_release
        exit 1; }
 
-mkdir -p "$CACHE/brain" "$CACHE/nvim" "$CACHE/dotfiles" "$CACHE/pi-runtime/node_modules"
+mkdir -p "$CACHE/brain" "$CACHE/nvim" "$CACHE/dotfiles"
 rsync -a --copy-unsafe-links --delete --exclude /sessions --exclude /missions "$HOME/.pi/agent/" "$CACHE/brain/" &
 rs_brain=$!
-rsync -a --delete --exclude /node_modules "$PI_SRC/" "$CACHE/pi-runtime/" &
-rs_pi=$!
 rsync -a --delete "$HOME/.config/nvim/" "$CACHE/nvim/" &
 rs_nvim=$!
 rsync -a --delete --exclude .git "$HOME/dotfiles-fedora/" "$CACHE/dotfiles/" &
 rs_dot=$!
-trap 'kill $rs_brain $rs_pi $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release' INT TERM HUP
+trap 'kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release' INT TERM HUP
 { sed -e 's#~/\.config/git/credentials\.gitconfig#~/credentials/git/gitconfig#' \
        "$HOME/dotfiles-fedora/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/.gitconfig.tmp" \
   || { echo "pi: нет ~/dotfiles-fedora/gitconfig" >&2; rm -f "$CACHE/.gitconfig.tmp"; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
@@ -213,16 +211,8 @@ for cred_name in kubeconfig pgpass pg_service.conf; do
 done
 sync_fail=0
 wait $rs_brain || sync_fail=1
-wait $rs_pi || sync_fail=1
 wait $rs_nvim || sync_fail=1
 wait $rs_dot || sync_fail=1
-# TODO(pi upstream): бандл pi в рантайме делает bare require внешних пакетов от
-# каталога бандла (jiti, quickjs-wasi/quickjs.wasm, typebox) — pi-runtime нужен свой
-# node_modules. Спилить блок, когда pi перестанет требовать внешние рантайм-пакеты.
-for rs_pkg in jiti quickjs-wasi typebox; do
-  rsync -a --delete "$HOME/.pi/agent/install/releases/$pi_ver/node_modules/$rs_pkg/" \
-    "$CACHE/pi-runtime/node_modules/$rs_pkg/" || sync_fail=1
-done
 mkdir -p "$CACHE/dotfiles/bin" \
   && install -m 755 "$SBX/bin/pi" "$CACHE/dotfiles/bin/pi" \
   || sync_fail=1
