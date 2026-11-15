@@ -2,7 +2,7 @@ SHELL := /bin/sh
 .PHONY: image seeds seed-go
 
 image:
-	docker build --build-arg AGENT_HOME_PATH=$(HOME) --build-arg AGENT_UID=$(shell id -u) --build-arg AGENT_GID=$(shell id -g) -t pi-agent-base -f image/Dockerfile image/
+	docker build --network=host --build-arg AGENT_HOME_PATH=$(HOME) --build-arg AGENT_UID=$(shell id -u) --build-arg AGENT_GID=$(shell id -g) -t pi-agent-base -f image/Dockerfile image/
 
 seeds: seed-go
 seed-go:
