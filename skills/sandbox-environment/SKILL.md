@@ -30,13 +30,21 @@ localhost = netns dind: docker-стеки; порты 8600-8699 видны с х
 ### kubectl
 
 - R-1 kubeconfig уже установлен - не настраивать и не просить creds.
-- R-2 Периметр прав задаёт kubeconfig, фактические права - `kubectl auth can-i --list` (и
-  `-n <ns>`); неразрешённое - не ошибка и не лечится.
+- R-2 Периметр прав задаёт kubeconfig, фактические права - `kubectl auth can-i --list
+  -n <ns>`: review namespaced, без `-n` виден только default-ns (пустой вывод != "нет
+  прав вообще"). Неразрешённое - не ошибка и не лечится; Forbidden на cluster-scope
+  (`get ns`, `-A`) и чужих ns для namespaced-конфига - норма транспорта.
+- R-12 Неясны ns/права - маршрут: (1) `kubectl config view --minify -o
+  jsonpath='{.context.namespace}'` (пусто -> дефолт default, `-n` обязателен);
+  (2) `can-i --list -n <ns>`; (3) smoke `kubectl -n <ns> get pods` - живой вызов
+  сильнее can-i. Вердикт "kubectl сломан" - только после (3) в подтверждённом ns.
 - R-3 port-forward всегда `--address 0.0.0.0` и порт 8600-8699 (без `--address` слушатель
   только на loopback внутри netns, с хоста недостижим).
 - R-4 Цель port-forward - `pod/<имя>` или `svc/<имя>`; имена из `kubectl get pods`, не
   зашиты здесь.
 - R-5 port-forward живёт пока жив процесс; оборвался - поднять той же командой.
+- R-13 Проверка проброшенного порта: `pg_isready -h 127.0.0.1 -p <port>` (postgres)
+  или `timeout 2 bash -c '</dev/tcp/127.0.0.1/<port>'` (nc в образе нет).
 
 ### psql
 
@@ -70,3 +78,4 @@ localhost = netns dind: docker-стеки; порты 8600-8699 видны с х
 | Поднять тест-стек          | R-8           |
 | Хост/прокси недоступен     | R-11          |
 | Креды отсутствуют/протухли | R-10          |
+| kubectl "сломан"/права неясны | R-2, R-12   |
