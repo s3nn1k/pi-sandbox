@@ -27,15 +27,14 @@ herdr-bridge, образ и сиды (make image seeds).
 
 ## Использование
 
-Из проекта (корни запуска - pi-mounts):
+pi маршрутизируется по cwd: launch-корни (pi-mounts, сейчас projects) - песочница; любой
+другой каталог - хостовый pi со строкой-уведомлением в stderr. pi --session с сессией,
+созданной вне корней, уходит хостовым pi независимо от текущего каталога.
 
-```sh
-pi
-```
-
-- pi --unsafe - хостовый pi; конфиг-подкоманды (update/mcp/auth/...) - тоже хостовые.
-- Без активного nft-guard pi отказывает в запуске (stamp /run/pi-sandbox-guard.active) -
-  прогони install.sh.
+- pi --unsafe - хостовый pi без уведомления; конфиг-подкоманды (update/mcp/auth/...) -
+  тоже хостовые.
+- Без активного nft-guard sandbox-ветка отказывает в запуске (stamp
+  /run/pi-sandbox-guard.active) - прогони install.sh.
 - Порты тест-стеков: 127.0.0.1:8600-8699.
 - Проверка окружения: sandbox-sync.
 - Живые сессии: docker ps --format '{{.Names}}' | grep pi-sess; при обрыве связи pi-run

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Запуск контейнера pi-агента. Перенос логики pi() из dotfiles/zshrc (Ф1).
 set -uo pipefail
 SBX="$HOME/pi-sandbox-fedora"
 CACHE="$HOME/tmp/pi-cache"
@@ -15,19 +14,41 @@ case "${1:-}" in
     ;;
 esac
 
-PWD="$(pwd -P)"
-if [[ "$PWD" == *..* ]]; then
-  echo "pi: '$PWD' содержит '..' — запуск из канонического пути" >&2
-  exit 1
+under_launch_root() {
+  local path="$1" p
+  while IFS= read -r p; do
+    [[ "$p" == *vm-only* || "$p" == *root-only* ]] && continue
+    [[ "$path" == "$HOME/$p" || "$path" == "$HOME/$p"/* ]] && return 0
+  done < <(grep -vE '^\s*#|^\s*$' "$SBX/pi-mounts")
+  return 1
+}
+
+session_path=""
+cli_args=("$@")
+for ((i = 0; i < ${#cli_args[@]}; i++)); do
+  case "${cli_args[i]}" in
+    --session) (( i + 1 < ${#cli_args[@]} )) && session_path="${cli_args[i + 1]}" ;;
+    --session=*) session_path="${cli_args[i]#--session=}" ;;
+  esac
+  [[ -n "$session_path" ]] && break
+done
+if [[ -n "$session_path" && -r "$session_path" ]]; then
+  session_root="$(head -n 1 "$session_path" | jq -r 'select(.type == "session") | .cwd // empty' 2>/dev/null)"
+  if [[ -n "$session_root" ]] && ! under_launch_root "$session_root"; then
+    echo "pi: сессия создана вне песочницы (cwd $session_root) — возобновляю хостовым pi" >&2
+    exec command pi "$@"
+  fi
 fi
-ok=0
-while IFS= read -r p; do
-  [[ "$p" == *vm-only* || "$p" == *root-only* ]] && continue
-  [[ "$PWD" == "$HOME/$p" || "$PWD" == "$HOME/$p"/* ]] && { ok=1; break; }
-done < <(grep -vE '^\s*#|^\s*$' "$SBX/pi-mounts")
-if [[ $ok != 1 ]]; then
-  echo "pi: '$PWD' вне смонтированных корней (см. $SBX/pi-mounts). Запустись из проекта или используй pi --unsafe." >&2
-  exit 1
+
+PWD="$(pwd -P)"
+if under_launch_root "$PWD"; then
+  if [[ "$PWD" == *..* ]]; then
+    echo "pi: '$PWD' содержит '..' — запуск из канонического пути" >&2
+    exit 1
+  fi
+else
+  echo "pi: '$PWD' вне корней песочницы — запускаю хостовым pi" >&2
+  exec command pi "$@"
 fi
 
 for dep in ip jq python3 rsync; do
