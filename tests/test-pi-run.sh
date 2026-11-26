@@ -14,6 +14,7 @@ stub_log="$fixture_root/stub.log"
 mkdir -p "$fixture_home/pi-sandbox" "$stub_bin" \
   "$fixture_home/projects/personal/app" "$fixture_home/dotfiles-fedora" "$fixture_home/tmp/scratch"
 cp -a "$repo_root/launch" "$fixture_home/pi-sandbox/"
+cp -a "$repo_root/platform" "$fixture_home/pi-sandbox/"
 
 cat >"$fixture_home/pi-sandbox/pi-mounts" <<'EOF'
 
@@ -45,24 +46,44 @@ EOF
 cat >"$stub_bin/docker" <<'EOF'
 #!/usr/bin/env bash
 [[ "${1:-}" == "info" ]] && exit 1
+if [[ "${1:-}" == "ps" && -n "${DOCKER_PS_OUT:-}" ]]; then
+  printf '%s\n' "$DOCKER_PS_OUT"
+fi
 exit 0
 EOF
-chmod +x "$stub_bin/pi" "$stub_bin/systemctl" "$stub_bin/docker"
+cat >"$stub_bin/colima" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+cat >"$stub_bin/yq" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat >"$stub_bin/nc" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$stub_bin/pi" "$stub_bin/systemctl" "$stub_bin/docker" "$stub_bin/colima" "$stub_bin/yq" "$stub_bin/nc"
 
 case_index=0
 failures=0
+
+case_extra_env="PI_SANDBOX_PLATFORM=fedora"
 
 run_case() {
   local spec="$1"
   shift
   local case_name case_cwd expected_rc expected_stderr expected_stub_args
   IFS='|' read -r case_name case_cwd expected_rc expected_stderr expected_stub_args <<<"$spec"
+  local -a extra_env=()
+  [[ -n "$case_extra_env" ]] && read -r -a extra_env <<<"$case_extra_env"
+  case_extra_env="PI_SANDBOX_PLATFORM=fedora"
 
   : >"$stub_log"
   local stderr_file="$fixture_root/stderr.out" stdout_file="$fixture_root/stdout.out" mismatched=0
   (
     cd "$case_cwd" || exit 99
-    exec env HOME="$fixture_home" PATH="$stub_bin:$PATH" PI_STUB_LOG="$stub_log" "$pi_run" "$@"
+    exec env HOME="$fixture_home" PATH="$stub_bin:$PATH" PI_STUB_LOG="$stub_log" ${extra_env[@]+"${extra_env[@]}"} "$pi_run" "$@"
   ) >"$stdout_file" 2>"$stderr_file"
   local actual_rc=$?
   local actual_stub_args
@@ -106,6 +127,13 @@ run_case "session_garbage_falls_to_cwd|$fixture_home/dotfiles-fedora|7|вне к
 run_case "session_missing_value_falls_to_cwd|$fixture_home/dotfiles-fedora|7|вне корней песочницы — запускаю хостовым pi|--session" --session
 run_case "session_nonexistent_falls_to_cwd|$fixture_home/dotfiles-fedora|7|вне корней песочницы — запускаю хостовым pi|--session $fixture_root/nope.jsonl" --session "$fixture_root/nope.jsonl"
 run_case "unsafe_bypasses_all|$fixture_home/dotfiles-fedora|7|EMPTY|--version" --unsafe --version
+
+case_extra_env="PI_SANDBOX_PLATFORM=macos"
+run_case "macos_vm_unreachable|$fixture_home/projects/personal/app|1|docker-VM недоступна||"
+case_extra_env="PI_SANDBOX_PLATFORM=macos DOCKER_PS_OUT=pi-sess-999"
+run_case "macos_wedge_cycle_forbidden|$fixture_home/projects/personal/app|1|жёсткий цикл VM запрещён||"
+case_extra_env="PI_SANDBOX_PLATFORM=solaris"
+run_case "platform_unknown_fails_loud|$fixture_home/projects/personal/app|1|неизвестная платформа||"
 
 echo "итог: $((case_index - failures))/$case_index кейсов ok, $failures FAIL"
 (( failures == 0 )) || exit 1

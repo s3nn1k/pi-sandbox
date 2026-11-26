@@ -36,12 +36,12 @@ rsync -a --copy-unsafe-links --delete --exclude /sessions --exclude /missions "$
 rs_brain=$!
 rsync -a --delete "$HOME/.config/nvim/" "$CACHE/nvim/" &
 rs_nvim=$!
-rsync -a --delete --exclude .git "$HOME/dotfiles-fedora/" "$CACHE/dotfiles/" &
+rsync -a --delete --exclude .git "$PLATFORM_DOTFILES_DIR/" "$CACHE/dotfiles/" &
 rs_dot=$!
 trap 'kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release' INT TERM HUP
 { sed -e 's#~/\.config/git/credentials\.gitconfig#~/credentials/git/gitconfig#' \
-       "$HOME/dotfiles-fedora/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/.gitconfig.tmp" \
-  || { echo "pi: нет ~/dotfiles-fedora/gitconfig" >&2; rm -f "$CACHE/.gitconfig.tmp"; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+       "$PLATFORM_DOTFILES_DIR/gitconfig"; printf '\n[safe]\n\tdirectory = *\n'; } > "$CACHE/.gitconfig.tmp" \
+  || { echo "pi: нет $PLATFORM_DOTFILES_DIR/gitconfig" >&2; rm -f "$CACHE/.gitconfig.tmp"; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
 if [ -d "$CACHE/gitconfig" ]; then
   rm -rf "$CACHE/gitconfig"
 fi

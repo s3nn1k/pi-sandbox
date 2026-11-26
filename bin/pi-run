@@ -50,7 +50,12 @@ else
   exec command pi "$@"
 fi
 
+source "$SBX/launch/lib.sh" \
+  || { echo "pi: нет $SBX/launch/lib.sh (неполный деплой?)" >&2; exit 1; }
 unset DOCKER_HOST
+case "$PI_SANDBOX_PLATFORM" in
+  macos) export DOCKER_CONTEXT=colima ;;
+esac
 
 AGENT_UID="$(id -u)"
 AGENT_GID="$(id -g)"

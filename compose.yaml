@@ -8,7 +8,6 @@ services:
     working_dir: ${WORKDIR}
     tty: true
     init: true
-    pids_limit: 4096
     network_mode: "service:dind"
     environment:
       HOME: ${AGENT_HOME}
@@ -46,14 +45,12 @@ services:
       - nvim-state:${AGENT_HOME}/.local/state/nvim
       - ${AGENT_HOME}/tmp/pi-cache/git-credentials:/run/secrets/pi-git-credentials:ro
       - ${AGENT_HOME}/tmp/pi-cache/agent-creds:/run/secrets/pi-agent-creds:ro
-      - ${AGENT_HOME}/tmp/pi-cache/herdr-bridge:${AGENT_HOME}/.config/herdr
       - outer-dind:/var/run/dind
 
   dind:
     image: docker@sha256:3f3c01aaaebf7cce837356b688b7c059a4749f10bd7660dec7c58fc454a283f0
     command: dockerd --host=unix:///var/run/docker.sock --group=${AGENT_GID:-1000} --data-root=/var/lib/docker
     privileged: true
-    pids_limit: 8192
     restart: unless-stopped
     environment:
       DOCKER_TLS_CERTDIR: ""
@@ -69,27 +66,11 @@ services:
       - ${AGENT_HOME}/projects:${AGENT_HOME}/projects
       - ${AGENT_HOME}/vaults/work/researches:${AGENT_HOME}/vaults/work/researches
       - ${AGENT_HOME}/vaults/work/incidents:${AGENT_HOME}/vaults/work/incidents
-    mem_limit: 4g
-    networks:
-      - pinet
-    ports:
-      - "127.0.0.1:8600-8699:8600-8699"
-
-networks:
-  pinet:
-    driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: pi-sbx0
-    ipam:
-      config:
-        - subnet: 172.28.0.0/24
 
 volumes:
   outer-dind:
   dind-data:
   gomodcache:
-    name: pi-agent_gomodcache
-    external: true # владелец — make seeds, не compose
   gocache:
   npm:
   xdg-config:

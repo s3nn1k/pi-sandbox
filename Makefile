@@ -13,5 +13,5 @@ test:
 	bash tests/test-pi-run.sh
 
 lint:
-	for script in bin/pi-run bin/pi launch/lib.sh launch/steps/*.sh image/entrypoint.sh install.sh tests/test-pi-run.sh platform/macos/sandbox-sync; do bash -n "$$script" || exit 1; done
-	shellcheck bin/pi-run bin/pi launch/lib.sh launch/steps/*.sh image/entrypoint.sh install.sh tests/test-pi-run.sh platform/macos/sandbox-sync
+	for script in bin/pi-run bin/pi launch/lib.sh launch/steps/*.sh image/entrypoint.sh install.sh tests/test-pi-run.sh platform/macos/sandbox-sync platform/fedora/lib.sh platform/macos/lib.sh; do bash -n "$$script" || exit 1; done
+	shellcheck bin/pi-run bin/pi launch/lib.sh launch/steps/*.sh image/entrypoint.sh install.sh tests/test-pi-run.sh platform/macos/sandbox-sync platform/fedora/lib.sh platform/macos/lib.sh
