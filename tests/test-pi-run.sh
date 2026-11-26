@@ -13,6 +13,7 @@ stub_bin="$fixture_root/bin"
 stub_log="$fixture_root/stub.log"
 mkdir -p "$fixture_home/pi-sandbox-fedora" "$stub_bin" \
   "$fixture_home/projects/personal/app" "$fixture_home/dotfiles-fedora" "$fixture_home/tmp/scratch"
+cp -a "$repo_root/launch" "$fixture_home/pi-sandbox-fedora/"
 
 cat >"$fixture_home/pi-sandbox-fedora/pi-mounts" <<'EOF'
 

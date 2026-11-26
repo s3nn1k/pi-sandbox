@@ -22,6 +22,7 @@ for dep in git make curl jq rsync python3 systemctl firewall-cmd nft docker; do
 done
 
 chmod +x "${SBX}/bin/"*
+find "${SBX}/launch" -name '*.sh' ! -name 'lib.sh' -exec chmod +x {} +
 
 sudo install -Dm 644 "${SBX}/polkit/49-pi-sandbox-firewalld-inspect.rules" \
   /etc/polkit-1/rules.d/49-pi-sandbox-firewalld-inspect.rules
