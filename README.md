@@ -1,8 +1,9 @@
-# pi-sandbox-fedora
+# pi-sandbox
 
-Контейнерное окружение кодинг-агента pi на нативном docker Fedora: агент в netns dind,
-граница "хост исполняет только свой код". Инварианты и residuals - в коде (compose.yaml,
-launch/, install.sh) и истории коммитов.
+Контейнерное окружение кодинг-агента pi: агент в netns dind, граница "хост исполняет
+только свой код". Платформы - Fedora (docker) и macOS (colima); платформенные слои -
+platform/{fedora,macos}. Инварианты и residuals - в коде (compose.yaml, launch/,
+install.sh) и истории коммитов.
 
 ## Установка
 
@@ -16,7 +17,7 @@ launch/, install.sh) и истории коммитов.
 Из сессии без группы docker (до re-login):
 
 ```sh
-sg docker -c 'cd ~/pi-sandbox-fedora && ./install.sh'
+sg docker -c 'cd ~/pi-sandbox && ./install.sh'
 ```
 
 Идемпотентен: зона firewalld docker -> target %%REJECT%%, systemd --user юнит

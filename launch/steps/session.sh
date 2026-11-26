@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-SBX="$HOME/pi-sandbox-fedora"
+SBX="$HOME/pi-sandbox"
 source "$SBX/launch/lib.sh" \
   || { echo "pi: нет $SBX/launch/lib.sh (неполный деплой?)" >&2; exit 1; }
 

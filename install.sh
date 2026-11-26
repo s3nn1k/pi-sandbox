@@ -24,7 +24,7 @@ done
 chmod +x "${SBX}/bin/"*
 find "${SBX}/launch" -name '*.sh' ! -name 'lib.sh' -exec chmod +x {} +
 
-sudo install -Dm 644 "${SBX}/polkit/49-pi-sandbox-firewalld-inspect.rules" \
+sudo install -Dm 644 "${SBX}/platform/fedora/polkit/49-pi-sandbox-firewalld-inspect.rules" \
   /etc/polkit-1/rules.d/49-pi-sandbox-firewalld-inspect.rules
 
 if ! systemctl is-active --quiet firewalld; then
@@ -45,8 +45,8 @@ fi
 firewall-cmd --info-zone docker 2>/dev/null | grep -qE '^[[:space:]]*target: %%REJECT%%[[:space:]]*$' \
   || { echo "install: target зоны docker не применился после reload" >&2; exit 1; }
 
-sudo install -Dm 644 "${SBX}/nft/pi-sandbox-guard.nft" /etc/pi-sandbox/guard.nft
-sudo install -m 644 "${SBX}/systemd/system/pi-sandbox-guard.service" /etc/systemd/system/pi-sandbox-guard.service
+sudo install -Dm 644 "${SBX}/platform/fedora/nft/pi-sandbox-guard.nft" /etc/pi-sandbox/guard.nft
+sudo install -m 644 "${SBX}/platform/fedora/systemd/system/pi-sandbox-guard.service" /etc/systemd/system/pi-sandbox-guard.service
 sudo systemctl daemon-reload
 sudo systemctl enable pi-sandbox-guard
 sudo systemctl restart pi-sandbox-guard
@@ -73,7 +73,7 @@ while IFS= read -r root; do
 done < "${SBX}/pi-mounts"
 
 mkdir -p "${HOME}/.config/systemd/user"
-install -m 644 "${SBX}/systemd/user/herdr-bridge.service" "${HOME}/.config/systemd/user/herdr-bridge.service"
+install -m 644 "${SBX}/platform/fedora/systemd/user/herdr-bridge.service" "${HOME}/.config/systemd/user/herdr-bridge.service"
 systemctl --user daemon-reload
 systemctl --user enable --now herdr-bridge
 systemctl --user try-restart herdr-bridge

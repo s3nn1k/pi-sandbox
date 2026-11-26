@@ -5,4 +5,3 @@ tmp vm-only
 vaults/work/researches vm-only
 vaults/work/incidents vm-only
 go/pkg/mod vm-only ro
-.local/share/whisper vm-only ro

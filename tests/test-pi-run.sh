@@ -11,11 +11,11 @@ trap 'rm -rf "$fixture_root"' EXIT
 fixture_home="$fixture_root/home"
 stub_bin="$fixture_root/bin"
 stub_log="$fixture_root/stub.log"
-mkdir -p "$fixture_home/pi-sandbox-fedora" "$stub_bin" \
+mkdir -p "$fixture_home/pi-sandbox" "$stub_bin" \
   "$fixture_home/projects/personal/app" "$fixture_home/dotfiles-fedora" "$fixture_home/tmp/scratch"
-cp -a "$repo_root/launch" "$fixture_home/pi-sandbox-fedora/"
+cp -a "$repo_root/launch" "$fixture_home/pi-sandbox/"
 
-cat >"$fixture_home/pi-sandbox-fedora/pi-mounts" <<'EOF'
+cat >"$fixture_home/pi-sandbox/pi-mounts" <<'EOF'
 
 # comment
 projects
