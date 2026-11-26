@@ -2,12 +2,12 @@
 
 Контейнерное окружение кодинг-агента pi на нативном docker Fedora: агент в netns dind,
 граница "хост исполняет только свой код". Инварианты и residuals - в коде (compose.yaml,
-bin/pi-run, install.sh) и истории коммитов.
+launch/, install.sh) и истории коммитов.
 
 ## Установка
 
 Требования: docker-ce с юзером в группе docker, firewalld, ~/dotfiles-fedora и
-~/credentials (источники синка - см. bin/pi-run).
+~/credentials (источники синка - см. launch/steps/sync.sh).
 
 ```sh
 ./install.sh
@@ -20,10 +20,8 @@ sg docker -c 'cd ~/pi-sandbox-fedora && ./install.sh'
 ```
 
 Идемпотентен: зона firewalld docker -> target %%REJECT%%, systemd --user юнит
-herdr-bridge, образ и сиды (make image seeds).
-
-Границу хоста держит юнит pi-sandbox-guard: nft-таблица с pre-DNAT drop трафика из pi-sbx0
-к локальным адресам хоста загружается до docker.
+herdr-bridge, образ и сиды (make image seeds). Границу хоста держит юнит pi-sandbox-guard
+(nft pre-DNAT drop из pi-sbx0 к хосту, загружается до docker).
 
 ## Использование
 
@@ -40,10 +38,5 @@ pi маршрутизируется по cwd: launch-корни (pi-mounts, се
   перецепляется сам; "сессия осиротела" (dind пересоздан) - перезапуск pi.
 - Обновление скриптов/моста: git pull && ./install.sh (юнит перезапустится сам).
 - Креды агента (kubectl/psql): kubeconfig / pgpass / pg_service.conf в
-  ~/credentials/agents-credentials/ (рядом с git-credentials), затем перезапустить pi.
-  kubectl port-forward - только с --address 0.0.0.0: без него слушатель только на loopback
-  внутри netns dind и до опубликованных 127.0.0.1:8600-8699 не достаёт; psql - по
-  ~/.pgpass и pg_service.conf (psql 'service=primary dbname=mydb'; флаг -d перебивает
-  позиционный service=).
-- Скилл окружения агента (kubectl/psql/docker) - skills/sandbox-environment, pi-run
-  доставляет его агенту.
+  ~/credentials/agents-credentials/; нюансы использования в песочнице - скилл
+  sandbox-environment (доставляется агенту при запуске).
