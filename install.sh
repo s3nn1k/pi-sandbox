@@ -69,9 +69,6 @@ while IFS= read -r root; do
   mkdir -p "${HOME}/${root%% *}"
 done < "${SBX}/pi-mounts"
 
-mkdir -p "${HOME}/.local/bin"
-ln -sfn "${SBX}/bin/sandbox-sync" "${HOME}/.local/bin/sandbox-sync"
-
 mkdir -p "${HOME}/.config/systemd/user"
 install -m 644 "${SBX}/systemd/user/herdr-bridge.service" "${HOME}/.config/systemd/user/herdr-bridge.service"
 systemctl --user daemon-reload

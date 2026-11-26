@@ -36,7 +36,6 @@ pi маршрутизируется по cwd: launch-корни (pi-mounts, се
 - Без активного nft-guard sandbox-ветка отказывает в запуске (stamp
   /run/pi-sandbox-guard.active) - прогони install.sh.
 - Порты тест-стеков: 127.0.0.1:8600-8699.
-- Проверка окружения: sandbox-sync.
 - Живые сессии: docker ps --format '{{.Names}}' | grep pi-sess; при обрыве связи pi-run
   перецепляется сам; "сессия осиротела" (dind пересоздан) - перезапуск pi.
 - Обновление скриптов/моста: git pull && ./install.sh (юнит перезапустится сам).
