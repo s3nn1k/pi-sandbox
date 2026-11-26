@@ -17,6 +17,9 @@ platform/<plat>/.
 - platform/<plat>/lib.sh - hooks: platform_deps, engine_ready, guard_checks, guard_probe,
   bind_preflight (fedora: systemctl/firewalld/nft checks, post-up traffic probe, bridge
   pinning; macos: colima VM bring-up and VM-mount sanity, guard hooks are no-ops).
+- platform/<plat>/install/ - install steps run by make install: fedora - deps, polkit,
+  firewalld, guard (nft + systemd unit), docker, herdr-bridge, image; macos - pf,
+  colima (VM bring-up, sandbox-sync, DOCKER-USER check), herdr-bridge (LaunchAgent), image.
 - launch/steps/ - preflight (deps, engine, guard, dind up), sync (agent cache refresh),
   session (container run + reattach on connection loss).
 - compose.yaml - platform-neutral base; platform/<plat>/compose.override.yaml adds
@@ -24,17 +27,17 @@ platform/<plat>/.
   pids/mem limits; macos - herdr-sock socat sidecar, wider port range.
 - image/ - pi-agent-base image; tests/ - stub-based suite (no real docker/systemctl).
 
-## Install (Fedora)
-
-Requirements: docker-ce with the user in the docker group, firewalld, ~/dotfiles-fedora
-and ~/credentials (sync sources - see launch/steps/sync.sh). From a session without the
-docker group use sg docker -c 'cd ~/pi-sandbox && ./install.sh'. Idempotent: docker zone
-target %%REJECT%%, pi-sandbox-guard nft unit, herdr-bridge user unit, image and seeds
-(make image seeds). macOS install unification into this repo is the next step.
+## Install
 
 ```sh
-./install.sh
+make install
 ```
+
+scripts/install.sh resolves the platform (fedora/macos) and runs platform/<plat>/install/
+steps; idempotent on re-run. Fedora needs docker-ce with the user in the docker group,
+firewalld, ~/dotfiles-fedora and ~/credentials (sync sources - see launch/steps/sync.sh);
+from a session without the docker group use sg docker -c 'cd ~/pi-sandbox && make install'.
+macOS needs colima (vz/virtiofs) and brew.
 
 ## Usage
 

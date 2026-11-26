@@ -22,11 +22,11 @@ date_to_epoch() { date -u -d "$1" +%s 2>/dev/null; }
 guard_checks() {
   if ! systemctl is-active --quiet firewalld \
      || ! firewall-cmd --zone=docker --list-all 2>/dev/null | grep -qE '^[[:space:]]*target: %%REJECT%%[[:space:]]*$'; then
-    echo "pi: S2 неактивен (зона docker не REJECT / firewalld стоит) — прогони install.sh" >&2
+    echo "pi: S2 неактивен (зона docker не REJECT / firewalld стоит) — прогони make install" >&2
     return 1
   fi
   [ -f /run/pi-sandbox-guard.active ] \
-    || { echo "pi: nft-guard не активен (systemctl status pi-sandbox-guard; прогони install.sh)" >&2; return 1; }
+    || { echo "pi: nft-guard не активен (systemctl status pi-sandbox-guard; прогони make install)" >&2; return 1; }
 }
 
 guard_probe() {
@@ -67,7 +67,7 @@ socket.create_connection(("172.28.0.1", int(sys.argv[1])), timeout=2).close()' "
   if run_to 15 docker run --rm --network pi-agent_pinet --entrypoint node pi-agent-base \
     -e 'const net=require("net");const s=net.connect({host:"172.28.0.1",port:process.argv[1]},()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1));setTimeout(()=>{s.destroy();process.exit(1)},4000).unref();' \
     "$probe_port" >/dev/null; then
-    echo "pi: nft-guard не держит трафик (проба из pinet прошла насквозь) — systemctl restart pi-sandbox-guard / прогони install.sh" >&2
+    echo "pi: nft-guard не держит трафик (проба из pinet прошла насквозь) — systemctl restart pi-sandbox-guard / прогони make install" >&2
     probe_cleanup
     return 1
   fi

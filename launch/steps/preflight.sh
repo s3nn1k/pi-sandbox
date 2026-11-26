@@ -33,7 +33,7 @@ fi
 [ -n "${DIND_ID:-}" ] || { echo "pi: dind-id не найден" >&2; exit 1; }
 if ! bridge_pinned; then
   if [ "$live_sess" -gt 0 ]; then
-    echo "pi: pinet со старым hash-bridge (pi-sbx0 нет), живые сессии есть — пересоздание сети осиротит их; останови pi и прогони install.sh" >&2
+    echo "pi: pinet со старым hash-bridge (pi-sbx0 нет), живые сессии есть — пересоздание сети осиротит их; останови pi и прогони make install" >&2
     exit 1
   fi
   echo "pi: pinet со старым hash-bridge (pi-sbx0 нет) — пересоздаю сеть проекта (живых сессий нет)" >&2
