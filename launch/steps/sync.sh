@@ -1,21 +1,32 @@
 #!/usr/bin/env bash
 set -uo pipefail
 SBX="$HOME/pi-sandbox"
+# shellcheck source=/dev/null
 source "$SBX/launch/lib.sh" \
   || { echo "pi: нет $SBX/launch/lib.sh (неполный деплой?)" >&2; exit 1; }
+if ! declare -F run_to >/dev/null 2>&1 || ! declare -p CACHE >/dev/null 2>&1; then
+  echo "pi: повреждён $SBX/launch/lib.sh" >&2
+  exit 1
+fi
 
 mkdir -p "$CACHE"
 sync_lock="$CACHE/.sync-lock"
 lock_tries=0
+no_pid_tries=0
 until mkdir "$sync_lock" 2>/dev/null; do
   (( ++lock_tries > 300 )) && { echo "pi: sync-lock занят (pid ${lock_pid:-?})" >&2; exit 1; }
   lock_pid="$(cat "$sync_lock/pid" 2>/dev/null)"
-  if [ -z "$lock_pid" ] && [ -z "$(find "$sync_lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+  if [ -z "$lock_pid" ]; then
+    if (( ++no_pid_tries <= 10 )) \
+       && [ -z "$(find "$sync_lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+      sleep 1
+      continue
+    fi
+  elif kill -0 "$lock_pid" 2>/dev/null; then
     sleep 1
     continue
   fi
-  if { [ -z "$lock_pid" ] || ! kill -0 "$lock_pid" 2>/dev/null; } \
-     && ! pgrep -f 'pi-cache/(brain|nvim|dotfiles)' >/dev/null 2>&1; then
+  if ! pgrep -f 'pi-cache/(brain|nvim|dotfiles)' >/dev/null 2>&1; then
     rm -rf "$sync_lock"
     continue
   fi

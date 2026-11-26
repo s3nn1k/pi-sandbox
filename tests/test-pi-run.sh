@@ -135,5 +135,58 @@ run_case "macos_wedge_cycle_forbidden|$fixture_home/projects/personal/app|1|жё
 case_extra_env="PI_SANDBOX_PLATFORM=solaris"
 run_case "platform_unknown_fails_loud|$fixture_home/projects/personal/app|1|неизвестная платформа||"
 
+mkdir -p "$fixture_home/.pi/agent/install"
+printf '9.9.9\n' >"$fixture_home/.pi/agent/install/current-version"
+fixture_cache="$fixture_home/tmp/pi-cache"
+
+sync_lock_none() { :; }
+sync_lock_old() {
+  mkdir "$fixture_cache/.sync-lock"
+  touch -d '3 minutes ago' "$fixture_cache/.sync-lock"
+}
+sync_lock_fresh() { mkdir "$fixture_cache/.sync-lock"; }
+sync_lock_live() {
+  mkdir "$fixture_cache/.sync-lock"
+  sleep 3 &
+  printf '%s\n' "$!" >"$fixture_cache/.sync-lock/pid"
+}
+
+run_sync_case() {
+  local case_name="$1" timeout_s="$2" setup="$3"
+  rm -rf "$fixture_cache/.sync-lock"
+  "$setup"
+  local rc
+  env HOME="$fixture_home" PATH="$stub_bin:$PATH" timeout "$timeout_s" \
+    "$fixture_home/pi-sandbox/launch/steps/sync.sh" >"$fixture_root/sync.out" 2>"$fixture_root/sync.err"
+  rc=$?
+  (( ++case_index ))
+  local mismatched=0
+  if (( rc != 1 )); then
+    echo "FAIL $case_index $case_name: ожидался rc=1 (sync падает на pi-рантайм), факт rc=$rc, stderr: $(cat "$fixture_root/sync.err")"
+    mismatched=1
+  fi
+  if ! grep -Fq 'pi-рантайм не найден' "$fixture_root/sync.err"; then
+    echo "FAIL $case_index $case_name: в stderr нет 'pi-рантайм не найден', факт: $(cat "$fixture_root/sync.err")"
+    mismatched=1
+  fi
+  if [ -d "$fixture_cache/.sync-lock" ]; then
+    echo "FAIL $case_index $case_name: sync-lock не снят после отказа"
+    mismatched=1
+  fi
+  if (( mismatched == 0 )); then
+    echo "ok $case_index $case_name"
+  else
+    (( ++failures ))
+  fi
+}
+
+run_sync_case "sync_lock_acquire_and_release" 10 sync_lock_none
+run_sync_case "sync_lock_stale_no_pid_removed" 10 sync_lock_old
+run_sync_case "sync_lock_fresh_no_pid_recovers_fast" 25 sync_lock_fresh
+run_sync_case "sync_lock_live_pid_waited_out" 15 sync_lock_live
+
+: >"$fixture_home/pi-sandbox/launch/lib.sh"
+run_case "empty_lib_guard_fails|$fixture_home/projects/personal/app|1|повреждён||"
+
 echo "итог: $((case_index - failures))/$case_index кейсов ok, $failures FAIL"
 (( failures == 0 )) || exit 1

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -uo pipefail
 SBX="$HOME/pi-sandbox"
+# shellcheck source=/dev/null
 source "$SBX/launch/lib.sh" \
   || { echo "pi: нет $SBX/launch/lib.sh (неполный деплой?)" >&2; exit 1; }
+if ! declare -F run_to >/dev/null 2>&1 || ! declare -p CACHE >/dev/null 2>&1; then
+  echo "pi: повреждён $SBX/launch/lib.sh" >&2
+  exit 1
+fi
 
 hpane="$(run_to 5 herdr pane current 2>/dev/null | jq -r '.result.pane.pane_id // empty')"
 : "${hpane:=${HERDR_PANE_ID:-}}"

@@ -44,6 +44,8 @@ bridge_pinned() { :; }
 
 bind_preflight() {
   local bind_srcs src found mnt
+  [ -f "$HOME/.colima/default/colima.yaml" ] \
+    || { echo "pi: нет $HOME/.colima/default/colima.yaml (colima не настроена?)" >&2; return 1; }
   bind_srcs="$(compose config --format json 2>/dev/null \
     | jq -r '[.services[].volumes[]? | select(.type == "bind") | .source] | unique[]' 2>/dev/null)"
   [ -n "$bind_srcs" ] || { echo "pi: pre-flight: не смог разобрать bind-источники compose" >&2; return 1; }
