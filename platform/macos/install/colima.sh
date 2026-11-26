@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SBX="${HOME}/pi-sandbox"
+# shellcheck source=/dev/null
+. "${SBX}/platform/macos/lib.sh"
 
 if ! colima status >/dev/null 2>&1; then
   colima start --vm-type vz --mount-type virtiofs --cpu 4 --memory 10
@@ -25,10 +27,5 @@ if [ "${cfg_changed}" = 1 ]; then
 else
   echo "install: конфиг VM без изменений — рестарт не нужен"
 fi
-fw="$(colima ssh -- sudo iptables -S DOCKER-USER 2>/dev/null)"
-if ! { echo "${fw}" | grep -q 'ESTABLISHED,RELATED -j RETURN' \
-       && echo "${fw}" | grep -q -- '--dport 4761 -j RETURN' \
-       && echo "${fw}" | grep -q '192.168.5.2/32 -j DROP'; }; then
-  echo "install: firewall неполный (нет EST/4761/DROP или весь отсутствует)" >&2
-  exit 1
-fi
+vm_firewall_rules_present \
+  || { echo "install: firewall неполный (нет EST/4761/DROP или весь отсутствует)" >&2; exit 1; }

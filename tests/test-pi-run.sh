@@ -188,5 +188,56 @@ run_sync_case "sync_lock_live_pid_waited_out" 15 sync_lock_live
 : >"$fixture_home/pi-sandbox/launch/lib.sh"
 run_case "empty_lib_guard_fails|$fixture_home/projects/personal/app|1|повреждён||"
 
+fw_bin="$fixture_root/fw-bin"
+mkdir -p "$fw_bin"
+cat >"$fw_bin/colima" <<'EOF'
+#!/usr/bin/env bash
+[[ "${1:-}" == "ssh" && "${2:-}" == "--" && "${3:-}" == "sudo" ]] || exit 1
+shift 3
+exec "$@"
+EOF
+cat >"$fw_bin/iptables" <<'EOF'
+#!/usr/bin/env bash
+chain=("-A DOCKER-USER -d 192.168.5.2/32 -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN"
+  "-A DOCKER-USER -d 192.168.5.2/32 -p tcp -m tcp --dport 4761 -j RETURN"
+  "-A DOCKER-USER -d 192.168.5.2/32 -j DROP")
+[ "${IPTABLES_STUB_MODE:-}" = complete ] || chain=("${chain[@]:1}")
+case "${1:-}" in
+  -S)
+    printf '%s\n' '-N DOCKER-USER' "${chain[@]}" ;;
+  -C)
+    shift
+    [ "${1:-}" = DOCKER-USER ] || exit 1
+    shift
+    spec="${*//ESTABLISHED,RELATED/RELATED,ESTABLISHED}"
+    [[ "$spec" == *--dport* && "$spec" != *"-m tcp"* ]] && spec="${spec/--dport/-m tcp --dport}"
+    for rule in "${chain[@]}"; do
+      [ "${rule#-A DOCKER-USER }" = "$spec" ] && exit 0
+    done
+    exit 1 ;;
+  *)
+    exit 1 ;;
+esac
+EOF
+chmod +x "$fw_bin/colima" "$fw_bin/iptables"
+
+run_firewall_case() {
+  local case_name="$1" mode="$2" expected_rc="$3" rc=0
+  # shellcheck disable=SC2016
+  env HOME="$fixture_home" PATH="$fw_bin:$PATH" IPTABLES_STUB_MODE="$mode" \
+    bash -c '. "$1/platform/macos/lib.sh"; vm_firewall_rules_present' _ "$fixture_home/pi-sandbox" \
+    >/dev/null 2>&1 || rc=$?
+  (( ++case_index ))
+  if (( rc == expected_rc )); then
+    echo "ok $case_index $case_name"
+  else
+    echo "FAIL $case_index $case_name: ожидалось rc=$expected_rc, факт rc=$rc"
+    (( ++failures ))
+  fi
+}
+
+run_firewall_case "vm_firewall_canonical_state_order_passes" complete 0
+run_firewall_case "vm_firewall_missing_rule_fails" incomplete 1
+
 echo "итог: $((case_index - failures))/$case_index кейсов ok, $failures FAIL"
 (( failures == 0 )) || exit 1

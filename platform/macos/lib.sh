@@ -35,6 +35,13 @@ engine_ready() {
   return 1
 }
 
+vm_firewall_rules_present() {
+  colima ssh -- sudo sh -c '
+    iptables -C DOCKER-USER -d 192.168.5.2/32 -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN \
+    && iptables -C DOCKER-USER -d 192.168.5.2/32 -p tcp --dport 4761 -j RETURN \
+    && iptables -C DOCKER-USER -d 192.168.5.2/32 -j DROP' >/dev/null 2>&1
+}
+
 guard_checks() { :; }
 
 guard_probe() { :; }
