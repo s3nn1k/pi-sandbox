@@ -32,14 +32,9 @@ ARG AGENT_HOME_PATH
 ARG AGENT_UID=1000
 ARG AGENT_GID=1000
 ARG COMPOSE_VERSION=v2.39.4
-ARG COMPOSE_SHA256=7af95166a730b87e172d4fc9aefea8725d3c6c7327d59149267b452114ddb7d4
-RUN mkdir -p /usr/local/lib/docker/cli-plugins \
-    && curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
-      -o /usr/local/lib/docker/cli-plugins/docker-compose \
-    && echo "${COMPOSE_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c - \
-    && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose \
-    && ln -s /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
-
+ARG COMPOSE_SHA256_AMD64=7af95166a730b87e172d4fc9aefea8725d3c6c7327d59149267b452114ddb7d4
+ARG COMPOSE_SHA256_ARM64=49082844b87f03cdcd5f5bbef1ba8c9c897b7a2dfb80cea18d61ec8ca6117e0c
+ARG TARGETARCH
 ARG GLAB_VERSION=1.117.0
 ARG GH_VERSION=2.100.0
 ARG KUBECTL_VERSION=v1.37.0
@@ -47,29 +42,40 @@ ARG YQ_VERSION=v4.53.6
 ARG NVIM_VERSION=v0.12.5
 ARG UV_VERSION=0.13.5
 RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) cli_arch=amd64; nvim_arch=x86_64; uv_arch=x86_64-unknown-linux-gnu; compose_arch=x86_64; compose_sha256_sum="${COMPOSE_SHA256_AMD64}" ;; \
+      arm64) cli_arch=arm64; nvim_arch=arm64; uv_arch=aarch64-unknown-linux-gnu; compose_arch=aarch64; compose_sha256_sum="${COMPOSE_SHA256_ARM64}" ;; \
+      *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /usr/local/lib/docker/cli-plugins; \
+    curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${compose_arch}" \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose; \
+    echo "${compose_sha256_sum}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -; \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose; \
+    ln -s /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose; \
     curl -fsSL -o /tmp/glab.tgz \
-      "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_amd64.tar.gz"; \
+      "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_${cli_arch}.tar.gz"; \
     tar -xzf /tmp/glab.tgz -C /tmp; \
     mv /tmp/bin/glab /usr/local/bin/glab; \
     curl -fsSL -o /tmp/gh.tgz \
-      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"; \
+      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${cli_arch}.tar.gz"; \
     tar -xzf /tmp/gh.tgz -C /tmp; \
-    mv "/tmp/gh_${GH_VERSION}_linux_amd64/bin/gh" /usr/local/bin/gh; \
+    mv "/tmp/gh_${GH_VERSION}_linux_${cli_arch}/bin/gh" /usr/local/bin/gh; \
     curl -fsSL -o /usr/local/bin/kubectl \
-      "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; \
+      "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${cli_arch}/kubectl"; \
     chmod +x /usr/local/bin/kubectl; \
     curl -fsSL -o /usr/local/bin/yq \
-      "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"; \
+      "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${cli_arch}"; \
     chmod +x /usr/local/bin/yq; \
     curl -fsSL -o /tmp/nvim.tgz \
-      "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux-x86_64.tar.gz"; \
+      "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/nvim-linux-${nvim_arch}.tar.gz"; \
     tar -xzf /tmp/nvim.tgz -C /opt; \
-    ln -s /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim; \
+    ln -s "/opt/nvim-linux-${nvim_arch}/bin/nvim" /usr/local/bin/nvim; \
     curl -fsSL -o /tmp/uv.tgz \
-      "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz"; \
+      "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${uv_arch}.tar.gz"; \
     tar -xzf /tmp/uv.tgz -C /tmp; \
-    mv /tmp/uv-x86_64-unknown-linux-gnu/uv /tmp/uv-x86_64-unknown-linux-gnu/uvx /usr/local/bin/; \
-    rm -rf /tmp/glab.tgz /tmp/gh.tgz /tmp/nvim.tgz /tmp/uv.tgz /tmp/bin /tmp/uv-x86_64-unknown-linux-gnu "/tmp/gh_${GH_VERSION}_linux_amd64"
+    mv "/tmp/uv-${uv_arch}/uv" "/tmp/uv-${uv_arch}/uvx" /usr/local/bin/; \
+    rm -rf /tmp/glab.tgz /tmp/gh.tgz /tmp/nvim.tgz /tmp/uv.tgz /tmp/bin "/tmp/uv-${uv_arch}" "/tmp/gh_${GH_VERSION}_linux_${cli_arch}"
 
 ARG PLAYWRIGHT_VERSION=1.63.0
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/ms-playwright \
