@@ -82,7 +82,9 @@ fi
 [ -f /run/pi-sandbox-guard.active ] \
   || { echo "pi: nft-guard не активен (systemctl status pi-sandbox-guard; прогони install.sh)" >&2; exit 1; }
 
-export AGENT_HOME="$HOME" AGENT_UID="$(id -u)" AGENT_GID="$(id -g)" WORKDIR="$PWD"
+AGENT_UID="$(id -u)"
+AGENT_GID="$(id -g)"
+export AGENT_HOME="$HOME" AGENT_UID AGENT_GID WORKDIR="$PWD"
 docker image inspect pi-agent-base >/dev/null 2>&1 \
   || { echo "pi: нет образа pi-agent-base — make -C $SBX image" >&2; exit 1; }
 DIND_ID="$(docker compose -f "$SBX/compose.yaml" ps -q dind)"
@@ -107,9 +109,11 @@ if ! bridge_pinned; then
     exit 1
   fi
   echo "pi: pinet со старым hash-bridge (pi-sbx0 нет) — пересоздаю сеть проекта (живых сессий нет)" >&2
-  docker compose -f "$SBX/compose.yaml" down \
-    && docker compose -f "$SBX/compose.yaml" up -d --wait --wait-timeout 180 dind >/dev/null 2>&1 \
-    || { echo "pi: пересоздание сети не удалось (см. docker compose -f $SBX/compose.yaml logs)" >&2; exit 1; }
+  if ! { docker compose -f "$SBX/compose.yaml" down \
+       && docker compose -f "$SBX/compose.yaml" up -d --wait --wait-timeout 180 dind >/dev/null 2>&1; }; then
+    echo "pi: пересоздание сети не удалось (см. docker compose -f $SBX/compose.yaml logs)" >&2
+    exit 1
+  fi
   DIND_ID="$(docker compose -f "$SBX/compose.yaml" ps -q dind)"
   bridge_pinned \
     || { echo "pi: pi-sbx0 не появился после пересоздания сети — проверь driver_opts com.docker.network.bridge.name в compose.yaml" >&2; exit 1; }
@@ -138,8 +142,11 @@ while True:
     [ -n "$probe_port" ] && break
     sleep 0.5
   done
-  [ -n "$probe_port" ] && kill -0 "$probe_pid" 2>/dev/null \
-    || { echo "pi: проба guard: слушатель на 172.28.0.1 не поднялся" >&2; probe_cleanup; exit 1; }
+  if [ -z "$probe_port" ] || ! kill -0 "$probe_pid" 2>/dev/null; then
+    echo "pi: проба guard: слушатель на 172.28.0.1 не поднялся" >&2
+    probe_cleanup
+    exit 1
+  fi
   python3 -c 'import socket, sys
 socket.create_connection(("172.28.0.1", int(sys.argv[1])), timeout=2).close()' "$probe_port" \
     || { echo "pi: проба guard: 172.28.0.1:$probe_port не отвечает с хоста" >&2; probe_cleanup; exit 1; }
@@ -222,9 +229,15 @@ for cred_name in kubeconfig pgpass pg_service.conf; do
   cred_src="$HOME/credentials/agents-credentials/$cred_name"
   cred_dst="$CACHE/agent-creds/$cred_name"
   if [ -s "$cred_src" ]; then
-    install -m 600 "$cred_src" "$CACHE/agent-creds/.$cred_name.tmp" \
-      && mv -f "$CACHE/agent-creds/.$cred_name.tmp" "$cred_dst" \
-      || { rm -f "$CACHE/agent-creds/.$cred_name.tmp"; echo "pi: сбой копирования $cred_src" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
+    if ! { install -m 600 "$cred_src" "$CACHE/agent-creds/.$cred_name.tmp" \
+         && mv -f "$CACHE/agent-creds/.$cred_name.tmp" "$cred_dst"; }; then
+      rm -f "$CACHE/agent-creds/.$cred_name.tmp"
+      echo "pi: сбой копирования $cred_src" >&2
+      kill $rs_brain $rs_nvim $rs_dot 2>/dev/null
+      wait
+      sync_lock_release
+      exit 1
+    fi
   else
     rm -f "$cred_dst" 2>/dev/null \
       || { echo "pi: не смог удалить устаревший $cred_dst" >&2; kill $rs_brain $rs_nvim $rs_dot 2>/dev/null; wait; sync_lock_release; exit 1; }
@@ -257,13 +270,14 @@ done < <(docker ps --format '{{.Names}}' 2>/dev/null | grep '^pi-sess-')
 if [ -n "$(find "$CACHE/.dind-prune-stamp" -mtime +1 2>/dev/null)" ] || [ ! -f "$CACHE/.dind-prune-stamp" ]; then
   inner_ttl=$(( 24 * 3600 ))
   now=$(date +%s)
+  mapfile -t inner_containers < <(docker exec "$DIND_ID" docker ps -q 2>/dev/null)
   while IFS= read -r line; do
     cont_id="${line%% *}"; started="${line#* }"
     started="${started%%.*}"; started="${started/T/ }"
     started_at=$(date -u -d "$started" +%s 2>/dev/null) || continue
     (( now - started_at > inner_ttl )) && docker exec "$DIND_ID" docker stop "$cont_id" >/dev/null 2>&1
   done < <(docker exec "$DIND_ID" docker inspect -f '{{.Id}} {{.State.StartedAt}}' \
-    $(docker exec "$DIND_ID" docker ps -q 2>/dev/null) 2>/dev/null)
+    "${inner_containers[@]}" 2>/dev/null)
   prune_log="$CACHE/.dind-prune-last.log"
   if [ -n "$DIND_ID" ] && run_to 120 docker exec "$DIND_ID" docker system prune -f --filter until=48h >"$prune_log" 2>&1; then
     touch "$CACHE/.dind-prune-stamp"
