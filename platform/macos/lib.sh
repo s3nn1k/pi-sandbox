@@ -1,7 +1,6 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034
-PLATFORM_DOTFILES_DIR="$HOME/dotfiles-macos"
-[ -d "$PLATFORM_DOTFILES_DIR" ] || PLATFORM_DOTFILES_DIR="$HOME/dotfiles-mac"
+PLATFORM_DOTFILES_DIR="$HOME/dotfiles"
 PLATFORM_UP_SERVICES=(dind herdr-bridge)
 
 platform_deps() {

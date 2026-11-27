@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034
-PLATFORM_DOTFILES_DIR="$HOME/dotfiles-fedora"
+PLATFORM_DOTFILES_DIR="$HOME/dotfiles"
 PLATFORM_UP_SERVICES=(dind)
 
 platform_deps() {

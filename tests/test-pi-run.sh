@@ -12,7 +12,7 @@ fixture_home="$fixture_root/home"
 stub_bin="$fixture_root/bin"
 stub_log="$fixture_root/stub.log"
 mkdir -p "$fixture_home/pi-sandbox" "$stub_bin" \
-  "$fixture_home/projects/personal/app" "$fixture_home/dotfiles-fedora" "$fixture_home/tmp/scratch"
+  "$fixture_home/projects/personal/app" "$fixture_home/dotfiles" "$fixture_home/tmp/scratch"
 cp -a "$repo_root/launch" "$fixture_home/pi-sandbox/"
 cp -a "$repo_root/platform" "$fixture_home/pi-sandbox/"
 
@@ -29,7 +29,7 @@ write_session_fixture() {
   local fixture_file="$1" session_cwd="$2"
   printf '{"type":"session","cwd":"%s"}\n' "$session_cwd" >"$fixture_file"
 }
-write_session_fixture "$fixture_root/host-session.jsonl" "$fixture_home/dotfiles-fedora"
+write_session_fixture "$fixture_root/host-session.jsonl" "$fixture_home/dotfiles"
 write_session_fixture "$fixture_root/sbx-session.jsonl" "$fixture_home/projects/personal/app"
 printf 'not json at all\n' >"$fixture_root/garbage-session.jsonl"
 : >"$stub_log"
@@ -115,18 +115,18 @@ run_case() {
   fi
 }
 
-run_case "host_cwd_outside_roots|$fixture_home/dotfiles-fedora|7|вне корней песочницы — запускаю хостовым pi|--version" --version
+run_case "host_cwd_outside_roots|$fixture_home/dotfiles|7|вне корней песочницы — запускаю хостовым pi|--version" --version
 run_case "vm_only_root_is_host|$fixture_home/tmp/scratch|7|вне корней песочницы — запускаю хостовым pi|--version" --version
 run_case "root_exact_is_sandbox|$fixture_home/projects|1|docker недоступен||"
 run_case "nested_root_is_sandbox|$fixture_home/projects/personal/app|1|docker недоступен||"
 run_case "session_hostborn_from_sandbox_cwd|$fixture_home/projects/personal/app|7|сессия создана вне песочницы|--session $fixture_root/host-session.jsonl --version" --session "$fixture_root/host-session.jsonl" --version
 run_case "session_eq_form_hostborn|$fixture_home/projects/personal/app|7|сессия создана вне песочницы|--session=$fixture_root/host-session.jsonl" --session="$fixture_root/host-session.jsonl"
 run_case "session_sbxborn_from_sandbox_cwd|$fixture_home/projects/personal/app|1|docker недоступен||" --session "$fixture_root/sbx-session.jsonl"
-run_case "session_hostborn_from_host_cwd|$fixture_home/dotfiles-fedora|7|сессия создана вне песочницы|--session $fixture_root/host-session.jsonl" --session "$fixture_root/host-session.jsonl"
-run_case "session_garbage_falls_to_cwd|$fixture_home/dotfiles-fedora|7|вне корней песочницы — запускаю хостовым pi|--session $fixture_root/garbage-session.jsonl" --session "$fixture_root/garbage-session.jsonl"
-run_case "session_missing_value_falls_to_cwd|$fixture_home/dotfiles-fedora|7|вне корней песочницы — запускаю хостовым pi|--session" --session
-run_case "session_nonexistent_falls_to_cwd|$fixture_home/dotfiles-fedora|7|вне корней песочницы — запускаю хостовым pi|--session $fixture_root/nope.jsonl" --session "$fixture_root/nope.jsonl"
-run_case "unsafe_bypasses_all|$fixture_home/dotfiles-fedora|7|EMPTY|--version" --unsafe --version
+run_case "session_hostborn_from_host_cwd|$fixture_home/dotfiles|7|сессия создана вне песочницы|--session $fixture_root/host-session.jsonl" --session "$fixture_root/host-session.jsonl"
+run_case "session_garbage_falls_to_cwd|$fixture_home/dotfiles|7|вне корней песочницы — запускаю хостовым pi|--session $fixture_root/garbage-session.jsonl" --session "$fixture_root/garbage-session.jsonl"
+run_case "session_missing_value_falls_to_cwd|$fixture_home/dotfiles|7|вне корней песочницы — запускаю хостовым pi|--session" --session
+run_case "session_nonexistent_falls_to_cwd|$fixture_home/dotfiles|7|вне корней песочницы — запускаю хостовым pi|--session $fixture_root/nope.jsonl" --session "$fixture_root/nope.jsonl"
+run_case "unsafe_bypasses_all|$fixture_home/dotfiles|7|EMPTY|--version" --unsafe --version
 
 case_extra_env="PI_SANDBOX_PLATFORM=macos"
 run_case "macos_vm_unreachable|$fixture_home/projects/personal/app|1|docker-VM недоступна||"

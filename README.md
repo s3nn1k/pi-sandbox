@@ -40,7 +40,7 @@ make install
 
 scripts/install.sh resolves the platform (fedora/macos) and runs platform/<plat>/install/
 steps; idempotent on re-run. Fedora needs docker-ce with the user in the docker group,
-firewalld, ~/dotfiles-fedora and ~/credentials (sync sources - see launch/steps/sync.sh);
+firewalld, ~/dotfiles and ~/credentials (sync sources - see launch/steps/sync.sh);
 from a session without the docker group use sg docker -c 'cd ~/pi-sandbox && make install'.
 macOS needs colima (vz/virtiofs) and brew.
 
