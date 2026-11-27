@@ -22,6 +22,11 @@ platform/<plat>/.
   colima (VM bring-up, sandbox-sync, DOCKER-USER check), herdr-bridge (LaunchAgent), image.
 - launch/steps/ - preflight (deps, engine, guard, dind up), sync (agent cache refresh),
   session (container run + reattach on connection loss).
+- bin/herdr-sock-bridge - herdr socket bridge: listens via a platform transport
+  (platform/<plat>/bridge-transport.py - fedora: unix socket under ~/tmp/pi-cache with
+  self-heal, macos: TCP 127.0.0.1:4761) and forwards only pane.report_agent /
+  pane.report_agent_session requests to ~/.config/herdr/herdr.sock; other methods are
+  rejected with method_not_allowed.
 - compose.yaml - platform-neutral base; platform/<plat>/compose.override.yaml adds
   network/ports/limits: fedora - pinet with pi-sbx0 bridge, loopback-published ports,
   pids/mem limits; macos - herdr-sock socat sidecar, wider port range.
@@ -53,6 +58,6 @@ macOS needs colima (vz/virtiofs) and brew.
 ## Development
 
 ```sh
-make lint   # bash -n + shellcheck over shell entry points
-make test   # router/platform tests against stubs
+make lint   # bash -n + shellcheck over shell entry points + py_compile over the bridge
+make test   # stub-based bash suite + herdr-bridge unit tests
 ```

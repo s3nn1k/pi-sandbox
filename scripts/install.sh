@@ -21,8 +21,7 @@ while IFS= read -r root; do
 done < "${SBX}/pi-mounts"
 
 chmod +x "${SBX}"/platform/*/install/*.sh \
-  "${SBX}"/platform/macos/sandbox-sync "${SBX}"/platform/fedora/herdr-sock-bridge \
-  "${SBX}"/platform/macos/herdr-sock-bridge "${SBX}"/bin/* "${SBX}"/launch/steps/*.sh
+  "${SBX}"/platform/macos/sandbox-sync "${SBX}"/bin/* "${SBX}"/launch/steps/*.sh
 
 case "${PI_SANDBOX_PLATFORM}" in
   fedora)

@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 UNAME_S := $(shell uname -s)
-.PHONY: image seeds seed-go test lint install
+.PHONY: image seeds seed-go test test-bridge lint install
 
 ifeq ($(UNAME_S),Linux)
 IMAGE_NET := --network=host
@@ -14,12 +14,16 @@ seed-go:
 	docker run --rm -v pi-agent_gomodcache:/dst -v $(HOME)/go/pkg/mod:/src:ro alpine \
 	  sh -c 'cp -a /src/. /dst/ && chown -R $(shell id -u):$(shell id -g) /dst'
 
-test:
+test: test-bridge
 	bash tests/test-pi-run.sh
+
+test-bridge:
+	python3 -m unittest tests/test_herdr_bridge.py
 
 lint:
 	for script in bin/pi-run bin/pi launch/lib.sh launch/steps/*.sh image/entrypoint.sh scripts/install.sh tests/test-pi-run.sh platform/macos/sandbox-sync platform/fedora/lib.sh platform/macos/lib.sh platform/fedora/install/*.sh platform/macos/install/*.sh; do bash -n "$$script" || exit 1; done
 	shellcheck bin/pi-run bin/pi launch/lib.sh launch/steps/*.sh image/entrypoint.sh scripts/install.sh tests/test-pi-run.sh platform/macos/sandbox-sync platform/fedora/lib.sh platform/macos/lib.sh platform/fedora/install/*.sh platform/macos/install/*.sh
+	python3 -m py_compile bin/herdr-sock-bridge platform/fedora/bridge-transport.py platform/macos/bridge-transport.py
 
 install:
 	bash ./scripts/install.sh

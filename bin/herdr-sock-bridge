@@ -1,0 +1,217 @@
+#!/usr/bin/python3
+import importlib.util
+import json
+import os
+import platform
+import socket
+import sys
+import threading
+import time
+
+SOCK_PATH = os.path.expanduser("~/.config/herdr/herdr.sock")
+SBX_ROOT = os.path.join(os.path.expanduser("~"), "pi-sandbox")
+ALLOWED_METHODS = {"pane.report_agent", "pane.report_agent_session"}
+MAX_LINE = 1024 * 1024
+PLATFORM_BY_SYSTEM = {"Linux": "fedora", "Darwin": "macos"}
+
+
+def log(msg):
+    print("herdr-bridge: %s" % msg, file=sys.stderr, flush=True)
+
+
+def reject_response(request_id):
+    if not isinstance(request_id, (str, int, float, bool, type(None))):
+        request_id = None
+    return json.dumps({
+        "id": request_id,
+        "error": {
+            "code": "method_not_allowed",
+            "message": "bridge allows only status reports",
+        },
+    }).encode("utf-8") + b"\n"
+
+
+def encode_request(request):
+    return json.dumps(request).encode("utf-8") + b"\n"
+
+
+def close_sockets(*sockets):
+    for sock in sockets:
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+def pipe_responses(upstream, client):
+    try:
+        while True:
+            data = upstream.recv(65536)
+            if not data:
+                break
+            client.sendall(data)
+    except OSError:
+        pass
+    finally:
+        close_sockets(upstream, client)
+
+
+ACTIVE = threading.Semaphore(32)
+
+
+def handle(client):
+    if not ACTIVE.acquire(blocking=False):
+        log("reject: connection limit")
+        try:
+            client.close()
+        except OSError:
+            pass
+        return
+    try:
+        _handle(client)
+    finally:
+        ACTIVE.release()
+
+
+def _handle(client):
+    client.settimeout(300)
+    try:
+        upstream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        upstream.settimeout(300)
+        upstream.connect(SOCK_PATH)
+    except OSError as exc:
+        log("upstream unavailable: %s" % exc)
+        try:
+            client.sendall(json.dumps(
+                {"id": None, "error": {"code": "bridge_unavailable"}}
+            ).encode("utf-8") + b"\n")
+        except OSError:
+            pass
+        close_sockets(client)
+        return
+
+    try:
+        _forward_requests(upstream, client)
+    finally:
+        close_sockets(upstream, client)
+
+
+def _forward_requests(upstream, client):
+    threading.Thread(
+        target=pipe_responses, args=(upstream, client), daemon=True
+    ).start()
+
+    buf = b""
+    while True:
+        try:
+            chunk = client.recv(65536)
+        except OSError:
+            break
+        if not chunk:
+            break
+        if len(buf) + len(chunk) > MAX_LINE:
+            log("reject: line without newline exceeds MAX_LINE")
+            break
+        buf += chunk
+        while b"\n" in buf:
+            line, buf = buf.split(b"\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+
+            request, method = parse_request(line)
+
+            if method in ALLOWED_METHODS:
+                try:
+                    upstream.sendall(encode_request(request))
+                except (OSError, ValueError, TypeError, RecursionError):
+                    return
+            else:
+                log("reject: %s" % line[:100].decode("utf-8", "replace"))
+                try:
+                    client.sendall(reject_response(request.get("id") if request else None))
+                except (OSError, ValueError, TypeError, RecursionError):
+                    pass
+                return
+
+
+def parse_request(line):
+    try:
+        request = json.loads(line.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return None, None
+    if not isinstance(request, dict):
+        return {}, None
+    method = request.get("method")
+    if not isinstance(method, str):
+        return request, None
+    return request, method
+
+
+def resolve_platform():
+    forced = os.environ.get("PI_SANDBOX_PLATFORM")
+    if forced is not None:
+        if forced not in PLATFORM_BY_SYSTEM.values():
+            log("unknown PI_SANDBOX_PLATFORM: %s" % forced)
+            sys.exit(1)
+        return forced
+    system = platform.system()
+    if system not in PLATFORM_BY_SYSTEM:
+        log("unsupported system: %s" % system)
+        sys.exit(1)
+    return PLATFORM_BY_SYSTEM[system]
+
+
+def load_transport(platform_name):
+    module_path = os.path.join(
+        SBX_ROOT, "platform", platform_name, "bridge-transport.py"
+    )
+    if not os.path.isfile(module_path):
+        log("bridge transport not found: %s" % module_path)
+        sys.exit(1)
+    spec = importlib.util.spec_from_file_location("bridge_transport", module_path)
+    transport = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(transport)
+    return transport
+
+
+def wait_for_upstream():
+    wait_start = time.time()
+    waited_notice = 0
+    while not os.path.exists(SOCK_PATH):
+        time.sleep(5)
+        waited = int((time.time() - wait_start) / 60)
+        if waited >= (waited_notice + 10):
+            waited_notice = waited
+            log("waiting for %s (%d min)" % (SOCK_PATH, waited))
+
+
+def accept_loop(server_holder):
+    while True:
+        try:
+            client, _ = server_holder[0].accept()
+        except socket.timeout:
+            continue
+        except OSError:
+            time.sleep(1)
+            continue
+        threading.Thread(target=handle, args=(client,), daemon=True).start()
+
+
+def main():
+    transport = load_transport(resolve_platform())
+    server_holder = [transport.listen()]
+    log("listening -> %s (allow: %s)"
+        % (SOCK_PATH, ", ".join(sorted(ALLOWED_METHODS))))
+    if hasattr(transport, "keep_alive"):
+        server_holder = transport.keep_alive(server_holder[0])
+    wait_for_upstream()
+    accept_loop(server_holder)
+
+
+if __name__ == "__main__":
+    main()
